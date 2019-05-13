@@ -370,6 +370,8 @@ class Ninedraft:
         #  => Due to mouse move setting target position to cursor
         x, y = self._target_position
 
+        # print(f"X: {x}, Y: {y}")
+
         if self._target_in_range:
             block = self._world.get_block(x, y)
             if block:
