@@ -193,11 +193,10 @@ def load_simple_world(world):
 class Ninedraft:
     def __init__(self, master):
 
-        self._master = master
         self._world = World((GRID_WIDTH, GRID_HEIGHT), BLOCK_SIZE)
 
         load_simple_world(self._world)
-
+        self._master = master
         self._master.title(gameTitle)
 
         self._player = Player()
@@ -233,7 +232,9 @@ class Ninedraft:
         self._view.pack()
 
         # Task 1.2 Mouse Controls: Bind mouse events here
-        # ...
+        self._view.bind("<Button-1>", self._left_click)
+        self._view.bind("<Button-2>", self._right_click)
+        self._view.bind("<Motion>", self._mouse_move)
 
         # Task 1.3: Create instance of StatusView here
         # ...
@@ -277,7 +278,7 @@ class Ninedraft:
         cursor_position = self._world.grid_to_xy_centre(*self._world.xy_to_grid(target_x, target_y))
 
         # Task 1.2 Mouse Controls: Show/hide target here
-        # ...
+        
 
         # Task 1.3 StatusView: Update StatusView values here
         # ...
@@ -370,11 +371,10 @@ class Ninedraft:
         #  => Due to mouse move setting target position to cursor
         x, y = self._target_position
 
-        # print(f"X: {x}, Y: {y}")
-
         if self._target_in_range:
             block = self._world.get_block(x, y)
             if block:
+                print("t")
                 self.mine_block(block, x, y)
 
     def _trigger_crafting(self, craft_type):
