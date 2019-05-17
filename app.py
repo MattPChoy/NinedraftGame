@@ -323,12 +323,13 @@ class Ninedraft:
             # Task 1.2 Mouse Controls: Get what the block drops.
             # ...
 
-            if not drops:
+            if not block.get_drops(random.randrange(0, 10, 1)/10, True):
+                # luck, break_result
                 return
 
             x0, y0 = block.get_position()
 
-            for i, (drop_category, drop_types) in enumerate(drops):
+            for i, (drop_category, drop_types) in enumerate(block.get_drops(random.randrange(0,10,1)/10, True)):
                 print(f'Dropped {drop_category}, {drop_types}')
 
                 if drop_category == "item":
@@ -482,7 +483,6 @@ class Ninedraft:
         return False
 
 # Task 1.1 App class: Add a main function to instantiate the GUI here
-
 def main():
     root = tk.Tk()
     Ninedraft(root)
