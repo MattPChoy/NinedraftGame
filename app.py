@@ -233,7 +233,8 @@ class Ninedraft:
 
         # Task 1.2 Mouse Controls: Bind mouse events here
         self._view.bind("<Button-1>", self._left_click)
-        self._view.bind("<Button-2>", self._right_click)
+        # Note that <Button-2> symbolises middle click.
+        self._view.bind("<Button-3>", self._right_click)
         self._view.bind("<Motion>", self._mouse_move)
 
         # Task 1.3: Create instance of StatusView here
@@ -368,6 +369,7 @@ class Ninedraft:
         self.check_target()
 
     def _left_click(self, event):
+        print("Left click")
         # Invariant: (event.x, event.y) == self._target_position
         #  => Due to mouse move setting target position to cursor
         x, y = self._target_position
