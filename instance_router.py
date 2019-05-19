@@ -6,10 +6,14 @@ Ideally, there would be a view class for each individual thing (each item, each 
 from a super class (i.e. AbstractView) with a more complicated file structure. However, for simplicity's
 sake, this has been avoided in favour of a single view class with methods for each kind of unit.
 
-# TODO: reword
 If you wish to add additional types of visuals for units, simply inherit from the appropriate class
 and set the corresponding keyword argument in view.GameView
 """
+
+__author__ = "Benjamin Martin"
+__copyright__ = "Copyright 2019, The University of Queensland"
+__license__ = "MIT"
+__version__ = "1.0.0"
 
 #
 #                         /-------------\
@@ -51,11 +55,6 @@ and set the corresponding keyword argument in view.GameView
 
 import math
 import tkinter as tk
-
-__author__ = "Benjamin Martin"
-__copyright__ = "Copyright 2019, The University of Queensland"
-__license__ = "MIT"
-__version__ = "1.0.0"
 
 
 class InstanceRouter:

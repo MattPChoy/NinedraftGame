@@ -1,3 +1,15 @@
+"""
+Installs dependencies for Ninedraft
+CSSE1001 Assignment 3, Semester 1, 2019
+
+If running this file produces an error, try:
+    1. running IDLE as an administrator
+    2. opening this file in IDLE
+    3. run this file
+
+If that doesn't resolve the issue, please post to Piazza
+"""
+
 import sys
 import subprocess
 

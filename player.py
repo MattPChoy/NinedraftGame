@@ -1,21 +1,37 @@
-from physical_thing import PhysicalThing, DynamicThing
+from physical_thing import DynamicThing
+
+__author__ = "Benjamin Martin and Paul Haley"
+__version__ = "1.1.0"
+__date__ = "26/04/2019"
+__copyright__ = "The University of Queensland, 2019"
+
 
 class Player(DynamicThing):
-    def __init__(self, name="Allan", max_food=20, max_health=20):
-        super().__init__()
+    """A player in the game"""
+
+    def __init__(self, name: str = "Allan", max_food: float = 20, max_health: float = 20):
+        """Constructor
+
+        Parameters:
+            name (str): The player's name
+            max_food (float): The player's maximum & starting food
+            max_health (float): The player's maximum & starting health
+        """
+        super().__init__(max_health=max_health)
 
         self._name = name
 
         self._food = self._max_food = max_food
-        self._health = self._max_health = max_health
+
+    def get_name(self):
+        """(str)Returns the name of the player"""
 
     def get_food(self):
+        """(float) Returns the value of the player's food bar"""
         return self._food
 
-    def get_health(self):
-        return self._health
-
-    def change_food(self, change):
+    def change_food(self, change: float):
+        """Increases the player's food bar by 'change (float)'"""
         self._food += change
 
         if self._food < 0:
@@ -23,15 +39,16 @@ class Player(DynamicThing):
         elif self._food > self._max_food:
             self._food = self._max_food
 
-            # TODO: increase health here?
-
-    def change_health(self, change):
-        self._health += change
-
-        if self._health < 0:
-            self._health = 0
-        elif self._health > self._max_health:
-            self._health = self._max_health
-
+    # The following methods do not require documentation as their purpose is
+    # obvious/defined in the super class
     def __repr__(self):
         return f"Player({self._name!r})"
+
+    def use(self):
+        pass
+
+    def is_useable(self):
+        return False
+
+    def is_mineable(self):
+        return False

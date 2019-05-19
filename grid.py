@@ -1,9 +1,18 @@
-import tkinter as tk
-from typing import Tuple
-
-from item import Item
+"""
+Classes to manage modelling & displaying the hotbar & inventory
+"""
 
 __author__ = "Benjamin Martin and Paul Haley"
+__version__ = "1.1.0"
+__date__ = "26/04/2019"
+__copyright__ = "The University of Queensland, 2019"
+
+import tkinter as tk
+from typing import Tuple, Generator
+import json
+
+from core import TK_MOUSE_EVENTS
+from item import Item
 
 
 class Stack(object):
@@ -20,36 +29,58 @@ class Stack(object):
         Pre-condition:
             0 < quantity <= item.get_max_stack_size()"""
 
-        assert (0 < quantity <= item.get_max_stack_size(),
-                f"Stack creation attempted with quantity of {quantity} for Item {item.get_id()!r} "
-                f"that has a maximum stack size of {item.get_max_stack_size()}")
+        assert 0 <= quantity <= item.get_max_stack_size(), \
+            (f"Stack creation attempted with quantity of {quantity} for Item {item.get_id()!r} "
+             f"that has a maximum stack size of {item.get_max_stack_size()}")
 
         self._item = item
         self._quantity = quantity
 
-    def combine(self, other):
-        """Add to this stack the amount in other until other depleted or self is full. No action if
-        Stacks are of different types (or other is None).
+    def copy(self):
+        """(Stack) Returns a copy of this stack"""
+        return self.__class__(self.get_item(), self.get_quantity())
+
+    def matches(self, other: "Stack"):
+        """(bool) Returns True iff other contains the same item as this stack"""
+        return self._item.get_id() == other._item.get_id()
+
+    def absorb(self, other: "Stack", maximum=None):
+        """Absorbs another stack into this stack, as much as possible (stops when either other is
+        depleted or this is full).
+        No action if Stacks are of different types.
 
         Parameters:
-            other (Stack): stack to subtract quantity from
+            other (Stack): stack to absorb
 
-        Return (Stack): the state of the other stack, None if depleted"""
+        Return (bool): True iff the other stack was fully absorbed by this one"""
 
-        if isinstance(other, Stack) and other.get_item().get_id() == self.get_item().get_id():
-            other.subtract(self.add(other.get_quantity()))
+        if other.get_item().get_id() == self.get_item().get_id():
+            if maximum is None:
+                quantity = other.get_quantity()
+            else:
+                quantity = maximum
+            other.subtract(self.add(quantity))
             if other._quantity <= 0:
-                other = None
-        return other
+                return True
+        return False
 
-    def split(self):
+    def split(self, count=None):
         """Split this stack quantity in two and return the new Stack. The quantity of the new Stack
         and updated self is equal to the original Stack size.
 
+
+        Parameters:
+            count (int): The number to split off, defaults to half the stack size (rounded down)
+
         return (Stack): new Stack with half the size of the original"""
-        new = copy.deepcopy(self)
-        new._quantity = self._quantity // 2
-        self.subtract(self._quantity // 2)
+
+        if count is None:
+            count = self.get_quantity() // 2
+        else:
+            count = min(self.get_quantity(), count)
+
+        new = self.__class__(self.get_item(), count)
+        self.subtract(new.get_quantity())
         return new
 
     def add(self, quantity: int) -> int:
@@ -80,17 +111,30 @@ class Stack(object):
     def decrement(self):
         """Decrement Stack by one
 
-        Return (bool): True iff stack depleted (self._quantity == 0)"""
+        Return:
+             bool: True iff stack becomes depleted"""
 
         self.subtract(1)
         return bool(self._quantity)
 
     def get_item(self) -> Item:
-        """Return (Item): The Item in this Stack"""
+        """(Item) Returns the item held in this stack"""
         return self._item
 
     def get_quantity(self) -> int:
-        """Return (int): The Stack size (quantity)"""
+        """(int) Returns the quantity of items in this stack"""
+        return self._quantity
+
+    def is_empty(self):
+        """(bool) Returns True iff this stack is empty"""
+        return self._quantity == 0
+
+    def get_space(self):
+        """(int) Returns number of items this stack is short of being full"""
+        return self._item.get_max_stack_size() - self._quantity
+
+    def __len__(self):
+        """(int) Returns the quantity of items in this stack"""
         return self._quantity
 
     def __repr__(self):
@@ -113,7 +157,8 @@ class ItemGridView(tk.Canvas):
     def __init__(self, master, size,
                  deselected_colour='#e6e8ed',
                  selected_colour='#6CB2D1',
-                 commands=None,
+                 major_font=("Arial", 14),
+                 minor_font=("Arial", 10),
                  **kwargs):
         """Constructor for item based views.
 
@@ -123,11 +168,8 @@ class ItemGridView(tk.Canvas):
             kwargs: kwargs (key word arguments) to be given to the tk.Canvas on creation
         """
 
-        self._commands = commands or {
-            "<Button-1>": lambda e: None,
-            "<Button-2>": lambda e: None,
-            "<Button-3>": lambda e: None,
-        }
+        self._major_font = major_font
+        self._minor_font = minor_font
 
         rows, columns = size
 
@@ -144,14 +186,16 @@ class ItemGridView(tk.Canvas):
         for key in self._slots:
             self._slots[key] = self.create_oval(self.grid_to_xy_centre(key), self.grid_to_xy_centre(key))
 
-        for event_type, command in self._commands.items():
-            self.bind(event_type, lambda event, event_type=event_type: self._handle_event(event_type, event))
-
-    def _handle_event(self, event_type, event):
-        position = self.xy_to_grid((event.x, event.y))
-        self._commands[event_type](position)
-
     def grid_to_xy_box(self, grid_position):
+        """Returns the coordinates of the bounding box of the cell at 'grid_position'
+
+        Parameters:
+            grid_position (tuple<int, int>): Cell's (row, column) grid position
+
+        Return:
+            (tuple<float, float, float, float>):
+                    The (left, top, right, bottom) coordinates of the bounding box
+        """
         row, column = grid_position
 
         x0 = self.BORDER // 2 + (self.CELL_LENGTH + self.CELL_SPACING) * column
@@ -163,11 +207,28 @@ class ItemGridView(tk.Canvas):
         return x0, y0, x1, y1
 
     def grid_to_xy_centre(self, grid_position):
+        """Returns the coordinates of the centre of the cell at 'grid_position'
+
+        Parameters:
+            grid_position (tuple<int, int>): Cell's (row, column) grid position
+
+        Return:
+            (tuple<float, float>): The (x, y) coordinates of the centre
+        """
         x0, y0, x1, y1 = self.grid_to_xy_box(grid_position)
 
         return (x0 + x1) // 2, (y0 + y1) // 2
 
     def xy_to_grid(self, xy_position):
+        """Returns the grid position of the cell that contains the 'xy_position'
+
+        Parameters:
+            xy_position (tuple<float, float>):
+                    (x, y) coordinates contained by some cell
+
+        Return:
+            (tuple<int, int>): The (row, column) grid position of the cell
+        """
         x, y = xy_position
 
         column = (x - self.BORDER // 2) // (self.CELL_LENGTH + self.CELL_SPACING)
@@ -175,19 +236,62 @@ class ItemGridView(tk.Canvas):
 
         return row, column
 
-    def draw_cell(self, position, stack, active=False):
-        box = self.grid_to_xy_box(position)
+    def draw_cell(self, grid_position, stack, active=False):
+        """Draws a stack in a cell
+
+        Parameters:
+            grid_position (tuple<int, int>):
+                    The (row, column) position of the cell to draw on
+            stack (Stack): The stack to draw, or None for empty
+            active (bool): Whether the cell is active or not
+        """
+        box = self.grid_to_xy_box(grid_position)
 
         text = stack.get_item().get_id().replace('_', '\n') if stack else ""
 
         colour = self._selected_colour if active else self._deselected_colour
 
-        tags = [
-            self.create_rectangle(box, fill=colour),
-            self.create_text(self.grid_to_xy_centre(position), text=text)
-        ]
+        centre = self.grid_to_xy_centre(grid_position)
+        left, top, right, bottom = self.grid_to_xy_box(grid_position)
 
-        self._slots[position] = tags
+        self.create_rectangle(box, fill=colour, tag='cell')
+
+        if stack:
+            item = stack.get_item()
+
+            self.create_text(centre, text=text, font=self._major_font, tag='cell')
+
+            if item.is_stackable():
+                sub_text = f"{len(stack)}"
+                x = right
+                anchor = tk.SE
+            else:
+                sub_text = f"{item.get_durability()}/{item.get_max_durability()}"
+                x = left
+                anchor = tk.SW
+
+            self.create_text(x, bottom, text=sub_text, anchor=anchor, font=self._minor_font, tag='cell')
+
+    def bind_for_id(self, event, callback):
+        """Binds to tkinter mouse event and also provides position of
+        cell where event was triggered to callback
+
+        Callback is called similarly to callbacks to tk.bind, except grid_position of
+        relevant cell is also inserted:
+            tk_callback(mouse_event)
+            =>
+            callback(grid_position, mouse_event),
+                where 'grid_position' is the (row, column) position of the cell where
+                the event was triggered
+
+        Parameters:
+             event (str): The tkinter mouse event to bind to
+             callback (function): The callback to bind
+        """
+        if event not in TK_MOUSE_EVENTS:
+            return
+
+        self.bind(event, lambda e: callback(self.xy_to_grid((e.x, e.y)), e))
 
     def render(self, items, active_position):
         """Re-render the Hot Bar
@@ -201,234 +305,33 @@ class ItemGridView(tk.Canvas):
             self.draw_cell(position, stack, position == active_position)
 
 
-class Crafter(object):
-    """Square crafter model. The crafter can be used for combining multiple items into a single
-    item based off crafting recipes. """
-
-    def __init__(self, size: int, recipes, item_categories):
-        """Constructor for Crafter model
-
-        Parameters:
-            size (int): side length of item grid
-
-        Pre-condition:
-            size > 0"""
-
-        self._recipes = recipes
-        self._item_categories = item_categories
-
-        assert (size > 0)
-        size = 3
-        self._space = [None] * size
-        for i in range(len(self._space)):
-            self._space[i] = [None] * size
-
-        self._space[0][1] = Stack(Item('stick'), 1)
-        self._space[1][1] = Stack(Item('stick'), 1)
-
-    def _state_to_key(self) -> Tuple[Tuple[Stack]]:
-        """Converts the crafter list matrix (grid) to a reduced tuple matrix based off the extremes
-        of where items are placed in the grid.
-
-        Example (where 1 is an occupied cell and 0 is empty):
-            [0, 0, 1]
-            [0, 0, 1]  => (1)
-            [0, 0, 0]     (1)
-
-        Return tuple(tuple(Stack)): Reduced form of Stacks in grid"""
-
-        # Initialise extremities of utilised area (values beyond grid)
-        top = len(self._space)
-        bottom = -1
-        left = len(self._space[0])
-        right = -1
-
-        for row in range(len(self._space)):  # Searching for corners of items
-            for col in range(len(self._space[row])):
-                if self._space[row][col]:
-                    if row < top:
-                        top = row
-                    if col < left:
-                        left = col
-                    if row > bottom:
-                        bottom = row
-                    if col > right:
-                        right = col
-
-        # Converting list matrix to tuple matrix
-        pattern = [None] * (1 + bottom - top)
-        for i in range(len(pattern)):
-            pattern[i] = tuple(self._space[i][left:right + 1])
-        return tuple(pattern)
-
-    def find_match(self):
-        """Checks the crafting grid to see if there is a matching crafting recipe and returns it.
-
-        Return tuple(tuple(str)): crafting recipe match or None"""
-        state = self._state_to_key()
-        for r in self._recipes:
-            if len(r) == len(state) and len(r[0]) == len(state[0]):  # same reduced dimensions
-                for i in range(len(r)):
-                    for j in range(len(r[i])):
-                        # check each cell is same Item id or appropriate category
-                        item = state[i][j].get_item().get_id() if state[i][j] else None
-                        if item != r[i][j] or \
-                                (item and item not in self._item_categories.get(r[i][j], r[i][j])):
-                            break
-                    else:
-                        continue  # this row matched recipe, keep checking
-                    break
-                else:  # all rows matched (did not break), match found
-                    return r
-        return None
-
-    def craft(self):
-        """
-        return (Stack): Matching result of crafting recipe or None if no match.
-        """
-
-        match = self.find_match()
-        if not match:
-            return None
-        for i in range(len(self._space)):
-            for j in range(len(self._space[i])):
-                if self._space[i][j]:
-                    self._space[i][j].decrement()
-        self._update()
-        return copy.deepcopy(crafting_recipes[match])
-
-    def _update(self):
-        """Set all Stacks of size 0 to None in space"""
-        for i in range(len(self._space)):
-            for j in range(len(self._space[i])):
-                if self._space[i][j] and not self._space[i][j].get_quantity():
-                    self._space[i][j] = None
-
-    def add_to_slot(self, stack: Stack, row: int, column: int):
-        """Add the stack the row and column specified
-
-        Parameters:
-            stack (Stack): stack to add
-            row (int): row to add to
-            column (int): column to add to
-
-        return (bool): True iff coordinates are in the crafting grid"""
-        in_grid = row < self.get_size() and column < self.get_size()
-        if in_grid:
-            self._space[row][column] = stack
-        return in_grid
-
-    def get_item(self, row: int, column: int) -> Stack:
-        """Retrieve item from coordinates
-
-        Parameters:
-            row (int): row to add to
-            column (int): column to add to
-
-        return (Stack): stack at coordinates (potentially None)"""
-        return self._space[row][column]
-
-    def get_items(self):
-        """return list(list(Stack)): crafter grid"""
-        return self._space
-
-    def remove_item(self, row: int, column: int) -> Stack:
-        """Remove and return Stack at coordinates
-
-        Parameters:
-            row (int): row to add to
-            column (int): column to add to
-
-        return (Stack): stack at coordinates (potentially None)"""
-        item = self._space[row][column]
-        self._space[row][column] = None
-        return item
-
-    def get_size(self) -> int:
-        """return (int): the side dimension of crafter"""
-        return len(self._space)
-
-
-class CrafterView(ItemGridView):
-    """View class for crafting based views. This view gives a square crafting grid and a result
-    cell"""
-
-    def __init__(self, master, size):
-        """Constructor for CrafterView
-
-        Parameters:
-            master: container to add this view to
-            size (int): side dimension for crafting grid"""
-        super().__init__(master, size, size)
-
-        self._SIZE = size
-
-        # Create arrow between grid and result cell
-        arrow_start = self._get_cell_top_left(self._COLUMNS // 2, self._ROWS)
-        arrow_start = arrow_start[0], arrow_start[1] + self.CELL_LENGTH // 2
-        self.create_line(*arrow_start, arrow_start[0] + self.CELL_LENGTH, arrow_start[1], width=4,
-                         arrow=tk.LAST, arrowshape=(10, 15, 10))
-
-        # Result cell
-        self._result_location = (self._SIZE // 2, self._SIZE + 1)
-        result_top_left = self._get_cell_top_left(*self._result_location)
-        self._result = self.draw_cell(result_top_left)
-        self._result_render = self.create_text(self._result_location[0] + self.CONTENT_GAP,
-                                               self._result_location[1] + self.CONTENT_GAP,
-                                               anchor=tk.W, text="")
-
-    def selected_cell(self, x, y):
-        """Find and return the cell that has been clicked on (including result) if any.
-
-        parameters:
-            x (int): pixels x
-            y (int): pixels y
-
-        return (int, int): (row,col) if coordinates are within a cell, else (-1,-1)"""
-        table_location = super().selected_cell(x, y)
-        if table_location != (-1, -1):
-            return table_location
-        if self._is_in_cell(x, y, self._get_cell_top_left(*self._result_location)):
-            return self._result_location
-        return -1, -1
-
-    def is_result_location(self, location):
-        """Check if location is the result cell coordinates
-
-        Parameters:
-            location (int, int): (row, column) to check
-
-        return (bool): True iff result cell specified"""
-        return location == self._result_location
-
-    def select_cell(self, row, column):
-        """Mark a cell as selected, this will deselect the previous cell if one is selected.
-        Asking to select (-1, -1) will deselect everything. Override includes support for the
-        result cell.
-
-        Parameters:
-            row (int): row number of cell to select
-            column (int): column number of cell to select"""
-        if self._selected:
-            self.itemconfig(self._selected, fill=self._deselected_colour)
-        if row == -1 or column == -1:
-            self._selected = None
-        else:
-            if (row, column) == self._result_location:
-                self.itemconfig(self._result, fill=self._selected_colour)
-                self._selected = self._result
-            else:
-                self.itemconfig(self._slots[row][column], fill=self._selected_colour)
-                self._selected = self._slots[row][column]
-
-
 class Grid:
+    """A 2d grid to hold items"""
+
     def __init__(self, rows=4, columns=5):
         self._items = [
             [
                 None for j in range(columns)
             ] for i in range(rows)
         ]
+
+    def __repr__(self):
+        return json.dumps([[repr(stack) for stack in row] for row in self._items], indent=4)
+
+    def get_crafting_pattern(self):
+        """Returns the crafting pattern that this grid forms
+
+        Return:
+            tuple<
+                tuple<
+                    str:
+                    ...
+                >,
+                ...
+            >: A 2d-tuple that matches the dimensions of this grid, with each inner element being
+               the item id of the stack, else None if there is no stack
+        """
+        return tuple(tuple(stack.get_item().get_id() if stack else None for stack in row) for row in self._items)
 
     def get_size(self):
         """(int, int) Returns the (row, column) size of this inventory"""
@@ -438,51 +341,77 @@ class Grid:
 
         return rows, columns
 
-    def __getitem__(self, position) -> [Stack, None]:
+    def __getitem__(self, position) -> Stack:
+        """(Stack) Returns the stack at position, or None"""
         row, column = position
         return self._items[row][column]
 
-    def __setitem__(self, position, item: [Stack, None]):
+    def __setitem__(self, position, stack: Stack):
+        """Sets the stack at position to 'stack'
+
+        Parameters:
+            stack (Stack): The stack to set, or None
+        """
         row, column = position
-        self._items[row][column] = item
+        self._items[row][column] = stack
 
     def __len__(self):
+        """(int) Returns the total number of elements in this grid"""
         rows, columns = self.get_size()
         return rows * columns
 
-    def items(self):
+    def items(self) -> Generator[Tuple[Tuple[int, int], Stack], None, None]:
+        """Yields position, cell pairs for each cell in this grid
+
+        cell will either be a Stack, or None if its empty
+        Similar to dict.items"""
         for i, row in enumerate(self._items):
             for j, cell in enumerate(row):
                 yield (i, j), cell
 
     def keys(self):
+        """Yields the position each cell in this grid
+        Similar to dict.keys"""
         yield from self
 
     def values(self):
+        """Yields the cell value of each cell in this grid
+
+        cell value will either be a Stack, or None if the cell is empty
+        Similar to dict.items"""
         for i, row in enumerate(self._items):
             for j, cell in enumerate(row):
                 yield cell
 
     def __iter__(self):
+        """Alias to .items()"""
         for i, row in enumerate(self._items):
             for j, cell in enumerate(row):
                 yield (i, j)
 
     def pop(self, position):
+        """(Stack) Removes & returns the stack at 'position', or None if there is no stack"""
         value = self[position]
         self[position] = None
         return value
 
     def __contains__(self, position):
+        """(bool) Returns True iff 'position' is a position on this grid"""
         row, column = position
         rows, columns = self.get_size()
 
         return 0 <= row < rows and 0 <= column < columns
 
-    #### end standardised collection methods
-
     def add_item(self, item: Item):
-        self.add_items(Stack(item, 1))
+        """Add a single item to the inventory, to an existing stack of its type of the first
+        available empty.
+
+        Parameters:
+            item (Item): item to add to the inventory
+
+        Return:
+             bool: True iff the item was be added"""
+        return self.add_items(Stack(item, 1)) is None
 
     def add_items(self, stack: Stack):
         """Add a stack to the inventory. The insertion method will first try combining existing
@@ -493,69 +422,70 @@ class Grid:
         Parameters:
             stack (Stack): stack to add to the inventory
 
-        return (bool): True iff the entire stack was added."""
-        first_empty = None
-        for row in range(len(self._items)):
-            for column in range(len(self._items[row])):
-                if self._items[row][column]:  # check that cell is not empty (None)
-                    self._items[row][column].combine(stack)
-                elif not first_empty:  # find first cell that is empty (if any)
-                    first_empty = (row, column)
-                if not stack.get_quantity():
-                    return True
+        Return:
+             Stack: Remaining (sub-)stack that could not be added, or None if all was added"""
 
-        # Did not deplete stack on pre-existing stack, add to first empty cell if found
-        if first_empty:
-            self._items[first_empty[0]][first_empty[1]] = stack
-            return True
-        return False
+        # fill existing stacks
+        for position, this_stack in self.items():
+            if this_stack and this_stack.matches(stack):  # stacks match
+                this_stack.absorb(stack)
+                if stack.get_quantity() == 0:
+                    break
 
-    def add_to_slot(self, stack: Stack, row: int, column: int):
-        """Add the stack the row and column specified
+        # fill empty stacks, if necessary
+        if stack:
+            for position, this_stack in self.items():
+                if this_stack is None:
+                    self[position] = this_stack = Stack(stack.get_item(), 0)
+                    this_stack.absorb(stack)
+                if stack.get_quantity() == 0:
+                    break
 
-        Parameters:
-            stack (Stack): stack to add
-            row (int): row to add to
-            column (int): column to add to
-
-        return (bool): True iff coordinates are in the crafting grid"""
-        self[row, column] = stack
-
-    def get_items(self):
-        return list(self.values())
-
-    def get_item(self, row, column):
-        return self[row, column]
-
-    def remove_item(self, row, column):
-        return self.pop((row, column))
+        if stack and stack.get_quantity() > 0:
+            return stack
 
 
 class SelectableGrid(Grid):
+    """A grid that can have a single cell selected"""
+
     def __init__(self, rows=4, columns=5):
         super().__init__(rows=rows, columns=columns)
 
         self._selected = None
 
     def get_selected(self):
+        """(tuple<int, int>) Returns the position of the selected cell, or None if no cell is selected"""
         return self._selected
 
     def get_selected_value(self):
+        """(*) Returns the value in the selected cell, or None if no cell is selected"""
         if self._selected:
             return self[self._selected]
         else:
             return None
 
     def select(self, position):
+        """Selects the cell at 'position'
+
+        Raises:
+            KeyError if position does not exist on this grid
+        """
         if position not in self:
             raise KeyError(f"Invalid position {position} on {self.get_size()} grid")
 
         self._selected = position
 
     def deselect(self):
+        """Deselects the currently selected cell"""
         self._selected = None
 
     def toggle_selection(self, position):
+        """Toggles the selection of the cell at 'position'
+        I.e. if the cell is selected, it is deselected; vice-versa
+
+        Raises:
+            KeyError if position does not exist on this grid
+        """
         if position not in self:
             raise KeyError(f"Invalid position {position} on {self.get_size()} grid")
 
@@ -563,65 +493,3 @@ class SelectableGrid(Grid):
             self._selected = None
         else:
             self._selected = position
-
-
-class HotBar(SelectableGrid):
-    """Hot Bar model for storing of the player's on-hand items (Stacks). The Hot Bar is comparable
-    to a single row inventory but has the concept of an active item that the player is currently
-    holding/using. """
-
-    def __init__(self, columns=10):
-        super().__init__(rows=1, columns=columns)
-        self._active = 0
-
-    def set_item(self, index: int, stack: Stack):
-        """Store the given stack in the cell corresponding to the id given.
-
-        Parameters:
-            index (int): cell id to add Stack to
-            stack (Stack): stack to place into cell"""
-        if not (0 <= index < len(self._items[0])):
-            raise IndexError(f"ID must be in range 0 <= id < {len(self._items)}; instead got {index}")
-        self[0, index] = stack
-
-    def add_item(self, stack: Stack) -> bool:
-        """Find the first empty cell and place the Stack into it.
-
-        Parameters:
-            stack (Stack): stack to add to Hot Bar
-
-        Return (bool): True iff Stack was added; False if HotBar was full."""
-        for position, stack in self._items.items():
-            print(position, stack)
-
-
-        if None in self._items:
-            self._items[0][self._items[0].index(None)] = stack
-            return True
-        return False
-
-    def remove_item(self, id: int) -> Stack:
-        """Remove and return Stack at id
-
-        Parameters:
-            id (int): cell to remove from
-
-        return (Stack): Stack at cell requested (could be None)"""
-        return self.pop((0, id))
-
-    def get_item(self, id) -> Stack:
-        """Get and return Stack at id
-
-        Parameters:
-            id (int): cell to get from
-
-        return (Stack): Stack at cell requested (could be None)"""
-        return self[(0, id)]
-
-    def get_items(self):
-        """return list(list(Stack)): inventory grid"""
-        return self._items
-
-    def get_first_empty_id(self) -> int:
-        """return (int): get the first empty cell in the Hot Bar"""
-        return self._items[0].index(None)
