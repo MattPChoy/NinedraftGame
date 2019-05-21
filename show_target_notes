@@ -1,0 +1,54 @@
+def show_target(self, player_position, target_position, cursor_position=None,
+                    target_radius=14, target_thickness=2, crosshair_radius=4,
+                    target_colour='purple', cursor_bg_colour='grey', cursor_fg_colour='white'):
+        """Shows the target & cursor on screen
+
+        A target outline will be drawn around 'target_position', with the centre of this
+        outline exactly 'target_radius' away from 'target_position', and a thickness of
+        'target_thickness' on each side.
+
+        The cursor consists of a line and a crosshair. The line will be drawn from
+        'player_position' to 'cursor_position'. A crosshair will be drawn at
+        'cursor_position', with a radius of 'crosshair_radius'.
+
+        If 'cursor_position' is None, it will default to 'target_position'.
+
+        Parameters:
+            player_position (tuple<int, int>): The position of the player
+            target_position (tuple<int, int>): The position of the target cell (i.e. the centre of the block)
+            cursor_position (tuple<int, int> | None): The position of the cursor crosshair, or None if this should be
+                                                      the same as target_position
+            target_radius (int): The radius from the target position to the centre of the target outline
+            target_thickness (int): The thickness of the target outline
+            crosshair_radius (int): The radius of the cursor crosshair
+            target_colour (str): The colour of the target outline
+            cursor_bg_colour (str): The background colour of the cursor crosshair & line
+            cursor_fg_colour (str): The foreground colour of the cursor crosshair & line
+        """
+        x, y = target_position
+
+        if cursor_position is None:
+            cx, cy = target_position
+        else:
+            cx, cy = cursor_position
+
+        coords = x - target_radius, y - target_radius, x + target_radius, y + target_radius
+        self.create_rectangle(coords, fill='', width=target_thickness * 2, outline=target_colour,
+                              tag=('block', 'target'))
+
+        if cursor_bg_colour:
+            self.create_line(player_position, (cx, cy), fill=cursor_bg_colour, tag='cursor', width=3)
+
+        if cursor_fg_colour:
+            self.create_line(player_position, (cx, cy), fill=cursor_fg_colour, tag='cursor')
+
+        horizontal = (cx - crosshair_radius, cy), (cx + crosshair_radius, cy)
+        vertical = (cx, cy - crosshair_radius), (cx, cy + crosshair_radius)
+
+        if cursor_bg_colour:
+            self.create_line(horizontal, fill=cursor_bg_colour, tag='cursor', width=3)
+            self.create_line(vertical, fill=cursor_bg_colour, tag='cursor', width=3)
+
+        if cursor_fg_colour:
+            self.create_line(horizontal, fill=cursor_fg_colour, tag='cursor')
+            self.create_line(vertical, fill=cursor_fg_colour, tag='cursor')

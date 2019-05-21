@@ -1,0 +1,64 @@
+> app.py
+	def create_block(*block_id):
+	def create_item(*item_id):
+	def load_simple_world(world):
+
+	class Ninedraft:
+		def __init__(self, master):
+		def redraw(self):
+		def step(self):
+		def _move(self, dx, dy):
+		def _jump(self):
+		def mine_block(self, block, x, y):
+		def get_holding(self):
+		def check_target(self):
+		def _mouse_move(self, event):
+		def _left_click(self, event):
+		def _trigger_crafting(self, craft_type):
+		def run_effect(self, effect):
+		def _right_click(self, event):
+		def _activate_item(self, index):
+		def _handle_player_collide_item(self, player: Player, dropped_item: DroppedItem, data,
+                                    arbiter: pymunk.Arbiter):
+
+	def main():
+
+> block.py
+	class Block(PhysicalThing):
+		def __init__(self, hitpoints=20):
+		def get_id(self):
+		def get_hitpoints(self) -> float:
+		def get_position(self):
+		def is_mineable(self):
+		def get_drops(self, luck, correct_item_used):
+		def get_damage_by_tool(self, item):
+		def mine(self, effective_item, actual_item, luck):
+		def is_mined():
+		def __repr__(self):
+
+	class LeafBlock(Block):
+		def can_use(self):
+		def use(self):
+		def get_drops(self, luck, correct_item_used):
+		def __repr__(self):
+
+	class ResourceBlock():
+		def __init__(self, block_id, break_table):
+		def get_drops(self, luck, correct_item_used):
+		def can_use(self):
+		def use(self):
+		def __repr__(self):
+
+	class TrickCandleFlameBlock():
+		def __init__(self, stage):
+		def get_drops(self, luck, correct_item_used):
+		def use():
+		def __repr__():
+
+> core.py
+	def get_modifiers(state):
+	def euclidean_square_distance(position1: (float, float), position2: (float, float)):
+	def positions_in_range(position1, position2, max_distance):
+
+> crafting.py
+	

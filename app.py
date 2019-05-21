@@ -288,6 +288,10 @@ class Ninedraft:
         # Task 1.2 Mouse Controls: Show/hide target here
         # ...
 
+        # if target in range
+        # display target
+        
+
         # Task 1.3 StatusView: Update StatusView values here
         # ...
 
@@ -323,9 +327,18 @@ class Ninedraft:
 
         effective_item.attack(was_attack_successful)
 
+        food_decrease_factor = -0.2
+        health_decrease_factor = -0.1
+
         if block.is_mined():
             # Task 1.2 Mouse Controls: Reduce the player's food/health appropriately
-            # ...
+
+            if self._player.get_food() > 0:
+                # If the player still has food, decrease the food
+                self._player.change_food(food_decrease_factor)
+            else:
+                # If the player does not have food left, then decrease their health
+                self._player.change_health(health_decrease_factor)
 
             # Task 1.2 Mouse Controls: Remove the block from the world & get its drops
             # ...
