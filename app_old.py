@@ -2,14 +2,8 @@
 Simple 2d world where the player can interact with the items in the world.
 """
 
-__author__ = ""
-__date__ = ""
-__version__ = "1.1.0"
-__copyright__ = "The University of Queensland, 2019"
-
 import tkinter as tk
 import random
-from collections import namedtuple
 
 import pymunk
 
@@ -24,78 +18,44 @@ from core import positions_in_range
 from game import GameView, WorldViewRouter
 from mob import Bird
 
+__author__ = ""
+__date__ = ""
+__copyright__ = "The University of Queensland, 2019"
+
 BLOCK_SIZE = 2 ** 5
 GRID_WIDTH = 2 ** 5
 GRID_HEIGHT = 2 ** 4
 
 gameTitle = 'NineDraft V0.1 Matthew Choy'
 
-# Task 3/Post-grad only:
-# Class to hold game data that is passed to each thing's step function
-# Normally, this class would be defined in a separate file
-# so that type hinting could be used on PhysicalThing & its
-# subclasses, but since it will likely need to be extended
-# for these tasks, we have defined it here
-GameData = namedtuple('GameData', ['world', 'player'])
 
-
-def create_block(*block_id):
-    """(Block) Creates a block (this function can be thought of as a block factory)
-
-    Parameters:
-        block_id (*tuple): N-length tuple to uniquely identify the block,
-        often comprised of strings, but not necessarily (arguments are grouped
-        into a single tuple)
-
-    Examples:
-        >>> create_block("leaf")
-        LeafBlock()
-        >>> create_block("stone")
-        ResourceBlock('stone')
-        >>> create_block("mayhem", 1)
-        TrickCandleFlameBlock(1)
-    """
-    if len(block_id) == 1:
-        block_id = block_id[0]
+def create_block(*block_ids):
+    if len(block_ids) == 1:
+        block_id = block_ids[0]
         if block_id == "leaf":
             return LeafBlock()
         elif block_id in BREAK_TABLES:
             return ResourceBlock(block_id, BREAK_TABLES[block_id])
+        # ~< remove from template
+        elif block_id == "crafting_table":
+            return CraftingTableBlock()
+        # ~>
 
-    elif block_id[0] == 'mayhem':
-        return TrickCandleFlameBlock(block_id[1])
+    elif block_ids[0] == 'mayhem':
+        return TrickCandleFlameBlock(block_ids[1])
 
-    raise KeyError(f"No block defined for {block_id}")
+    raise KeyError(f"No block defined for {block_ids}")
 
 
-def create_item(*item_id):
-    """(Item) Creates an item (this function can be thought of as a item factory)
+def create_item(*item_types):
+    if len(item_types) == 2:
 
-    Parameters:
-        item_id (*tuple): N-length tuple to uniquely identify the item,
-        often comprised of strings, but not necessarily (arguments are grouped
-        into a single tuple)
-
-    Examples:
-        >>> create_item("dirt")
-        BlockItem('dirt')
-        >>> create_item("hands")
-        HandItem('hands')
-        >>> create_item("pickaxe", "stone")  # *without* Task 2.1.2 implemented
-        Traceback (most recent call last):
-        ...
-        NotImplementedError: "Tool creation is not yet handled"
-        >>> create_item("pickaxe", "stone")  # *with* Task 2.1.2 implemented
-        ToolItem('stone_pickaxe')
-    """
-    if len(item_id) == 2:
-
-        if item_id[0] in MATERIAL_TOOL_TYPES and item_id[1] in TOOL_DURABILITIES:
+        if item_types[0] in MATERIAL_TOOL_TYPES and item_types[1] in TOOL_DURABILITIES:
             raise NotImplementedError("Tool creation is not yet handled")
 
-    elif len(item_id) == 1:
+    elif len(item_types) == 1:
 
-        item_type = item_id[0]
+        item_type = item_types[0]
 
         if item_type == "hands":
             return HandItem("hands")
@@ -106,11 +66,22 @@ def create_item(*item_id):
         # Task 1.4 Basic Items: Create wood & stone here
         # ...
 
-    raise KeyError(f"No item defined for {item_id}")
+    raise KeyError(f"No item defined for {item_types}")
 
 
-# Task 1.3: Implement StatusView class here
-# ...
+# Categories can appear in crafting recipes to match on a group of items that are categorical.
+# e.g. Oak and Birch are both a type of wood
+item_categories = {
+    'wood': {'oak_wood', 'birch_wood'}
+}
+
+# (Item ids | category) in row * column tuple layout
+crafting_recipes = {
+    (('wood',),
+     ('wood',)): Stack(Item('stick'), 16),
+    (('dirt',),
+     ('dirt',)): Stack(Item('wood'), 4),
+}
 
 BLOCK_COLOURS = {
     'diamond': 'blue',
@@ -118,8 +89,7 @@ BLOCK_COLOURS = {
     'stone': 'grey',
     'wood': '#723f1c',
     'leaves': 'green',
-    'crafting_table': 'pink',
-    'furnace': 'black',
+    "crafting_table": "pink",
 }
 
 ITEM_COLOURS = {
@@ -129,18 +99,50 @@ ITEM_COLOURS = {
     'wood': '#723f1c',
     'apple': '#ff0000',
     'leaves': 'green',
-    'crafting_table': 'pink',
-    'furnace': 'black',
-    'cooked_apple': 'red4'
+    "crafting_table": "pink",
 }
 
 
-def load_simple_world(world):
-    """Loads blocks into a world
-
-    Parameters:
-        world (World): The game world to load with blocks
+class WorldViewRouter(InstanceRouter):
     """
+    Magical (sub)class used to handle drawing of different physical things
+    """
+    # Instances of class, or its subclasses are drawn by method
+    # I.e. _draw_block handles the drawing of Block & its subclasses
+    # More specific subclasses take priority, so _draw_mayhem block will handle the drawing of TrickCandleFlameBlock
+    _routing_table = [
+        # (class, method name)
+        (Block, '_draw_block'),
+        (TrickCandleFlameBlock, '_draw_mayhem_block'),
+        (DroppedItem, '_draw_physical_item'),
+        (Player, '_draw_player'),
+        (BoundaryWall, '_draw_undefined'),
+        (None.__class__, '_draw_undefined')
+    ]
+
+    def _draw_block(self, instance, shape, view):
+        return [view.create_rectangle(shape.bb.left, shape.bb.top, shape.bb.right, shape.bb.bottom,
+                                      fill=BLOCK_COLOURS[instance.get_id()], tag='block')]
+
+    def _draw_mayhem_block(self, instance, shape, view):
+        return [view.create_rectangle(shape.bb.left, shape.bb.top, shape.bb.right, shape.bb.bottom,
+                                      fill=instance.colours[instance._i], tag='block')]
+
+    def _draw_physical_item(self, instance, shape, view):
+        return [view.create_rectangle(shape.bb.left, shape.bb.top, shape.bb.right, shape.bb.bottom,
+                                      fill=ITEM_COLOURS[instance.get_item().get_id()],
+                                      tag='physical_item')]
+
+    def _draw_player(self, instance, shape, view):
+        return [view.create_oval(shape.bb.left, shape.bb.top, shape.bb.right, shape.bb.bottom,
+                                 fill='red', tag='player')]
+
+    def _draw_undefined(self, instance, shape, view):
+        return [view.create_rectangle(shape.bb.left, shape.bb.top, shape.bb.right, shape.bb.bottom,
+                                      fill='black', tag='undefined')]
+
+
+def load_simple_world(world):
     block_weights = [
         (100, 'dirt'),
         (30, 'stone'),
@@ -185,26 +187,16 @@ def load_simple_world(world):
 
         world.add_block_to_grid(block, i, j)
 
-    world.add_block_to_grid(create_block("mayhem", 0), 14, 8)
-
-    world.add_mob(Bird("friendly_bird", (12, 12)), 400, 100)
-
+    world.add_block_to_grid(TrickCandleFlameBlock(0), 14, 8)
 
 class Ninedraft:
-    """High-level app class for Ninedraft, a 2d sandbox game"""
-
     def __init__(self, master):
-        """Constructor
 
-        Parameters:
-            master (tk.Tk): tkinter root widget
-        """
-
-        self._master = master
-        self._master.title(gameTitle)
         self._world = World((GRID_WIDTH, GRID_HEIGHT), BLOCK_SIZE)
 
         load_simple_world(self._world)
+        self._master = master
+        self._master.title(gameTitle)
 
         self._player = Player()
         self._world.add_player(self._player, 250, 150)
@@ -224,8 +216,8 @@ class Ninedraft:
         self._hands = create_item('hands')
 
         starting_inventory = [
-            ((1, 5), Stack(Item('dirt'), 10)),
-            ((0, 2), Stack(Item('wood'), 10)),
+            ((1, 5), Stack(Item('oak_wood'), 1)),
+            ((0, 2), Stack(Item('birch_wood'), 1)),
         ]
         self._inventory = Grid(rows=3, columns=10)
         for position, stack in starting_inventory:
@@ -235,11 +227,10 @@ class Ninedraft:
         self._master.bind("e",
                           lambda e: self.run_effect(('crafting', 'basic')))
 
-        self._view = GameView(master, self._world.get_pixel_size(), WorldViewRouter(BLOCK_COLOURS, ITEM_COLOURS))
+        self._view = GameView(master, self._world.get_pixel_size(), WorldViewRouter())
         self._view.pack()
 
         # Task 1.2 Mouse Controls: Bind mouse events here
-        # ...
         self._view.bind("<Button-1>", self._left_click)
           # Note that <Button-2> symbolises middle click.
         self._view.bind("<Button-3>", self._right_click)
@@ -275,6 +266,7 @@ class Ninedraft:
         self.step()
 
     def redraw(self):
+        # TODO: cache items internally to improve efficiency
         self._view.delete(tk.ALL)
 
         # physical things
@@ -286,7 +278,8 @@ class Ninedraft:
         cursor_position = self._world.grid_to_xy_centre(*self._world.xy_to_grid(target_x, target_y))
 
         # Task 1.2 Mouse Controls: Show/hide target here
-        # ...
+        # GameView.show_target(player_position, cursor_position)
+        
 
         # Task 1.3 StatusView: Update StatusView values here
         # ...
@@ -295,14 +288,12 @@ class Ninedraft:
         self._hot_bar_view.render(self._hot_bar.items(), self._hot_bar.get_selected())
 
     def step(self):
-        data = GameData(self._world, self._player)
-        self._world.step(data)
+        # TODO: pass effects...
+        self._world.step()
         self.check_target()
         self.redraw()
 
         # Task 1.6 File Menu & Dialogs: Handle the player's death if necessary
-        # ...
-
         self._master.after(15, self.step)
 
     def _move(self, dx, dy):
@@ -311,7 +302,7 @@ class Ninedraft:
 
     def _jump(self):
         velocity = self._player.get_velocity()
-        # Task 1.2: Update the player's velocity here
+        # Task 1.4 Keyboard Controls: Update the player's velocity here
         # ...
 
     def mine_block(self, block, x, y):
@@ -325,25 +316,27 @@ class Ninedraft:
 
         if block.is_mined():
             # Task 1.2 Mouse Controls: Reduce the player's food/health appropriately
+            #          You may select what you believe is an appropriate amount by
+            #          which to reduce the food or health.
             # ...
 
-            # Task 1.2 Mouse Controls: Remove the block from the world & get its drops
-            # ...
-            drops = block.get_drops(luck, True)
             self._world.remove_block(block)
+            # Task 1.2 Mouse Controls: Get what the block drops.
+            # ...
 
-            if not drops:
+            if not block.get_drops(random.randrange(0, 10, 1)/10, True):
+                # luck, break_result
                 return
 
             x0, y0 = block.get_position()
 
-            for i, (drop_category, drop_types) in enumerate(drops):
+            for i, (drop_category, drop_types) in enumerate(block.get_drops(random.randrange(0,10,1)/10, True)):
                 print(f'Dropped {drop_category}, {drop_types}')
 
                 if drop_category == "item":
                     physical = DroppedItem(create_item(*drop_types))
 
-                    # this is so bleh
+                    # TODO: this is so bleh
                     x = x0 - BLOCK_SIZE // 2 + 5 + (i % 3) * 11 + random.randint(0, 2)
                     y = y0 - BLOCK_SIZE // 2 + 5 + ((i // 3) % 3) * 11 + random.randint(0, 2)
 
@@ -376,6 +369,7 @@ class Ninedraft:
         self.check_target()
 
     def _left_click(self, event):
+        print("Left click")
         # Invariant: (event.x, event.y) == self._target_position
         #  => Due to mouse move setting target position to cursor
         x, y = self._target_position
@@ -383,11 +377,11 @@ class Ninedraft:
         if self._target_in_range:
             block = self._world.get_block(x, y)
             if block:
+                print("t")
                 self.mine_block(block, x, y)
 
     def _trigger_crafting(self, craft_type):
         print(f"Crafting with {craft_type}")
-        # crafter = GridCrafter(CRAFTING_RECIPES_2x2)
 
     def run_effect(self, effect):
         if len(effect) == 2:
@@ -427,23 +421,17 @@ class Ninedraft:
 
         else:
             # place active item
-            selected = self._hot_bar.get_selected()
+            item = self._hot_bar.get_selected_value().get_item()
 
-            if not selected:
+            if not item:
                 return
 
-            stack = self._hot_bar[selected]
-            drops = stack.get_item().place()
-
-            stack.subtract(1)
-            if stack.get_quantity() == 0:
-                # remove from hotbar
-                self._hot_bar[selected] = None
+            drops = item.place()
 
             if not drops:
                 return
 
-            # handling multiple drops would be somewhat finicky, so prevent it
+            # TODO: handle multiple drops
             if len(drops) > 1:
                 raise NotImplementedError("Cannot handle dropping more than 1 thing")
 
@@ -471,14 +459,14 @@ class Ninedraft:
 
         self._hot_bar.toggle_selection((0, index))
 
-    def _handle_player_collide_item(self, player: Player, dropped_item: DroppedItem, data,
+    def _handle_player_collide_item(self, player: Player, item: DroppedItem, data,
                                     arbiter: pymunk.Arbiter):
         """Callback to handle collision between the player and a (dropped) item. If the player has sufficient space in
         their to pick up the item, the item will be removed from the game world.
 
         Parameters:
             player (Player): The player that was involved in the collision
-            dropped_item (DroppedItem): The (dropped) item that the player collided with
+            item (DroppedItem): The (dropped) item that the player collided with
             data (dict): data that was added with this collision handler (see data parameter in
                          World.add_collision_handler)
             arbiter (pymunk.Arbiter): Data about a collision
@@ -490,22 +478,13 @@ class Ninedraft:
                    returning False makes the world ignore the collision)
         """
 
-        item = dropped_item.get_item()
+        if self._inventory.add_item(item.get_item()):
+            print(f"Picked up a {item!r}")
+            self._world.remove_item(item)
 
-        if self._hot_bar.add_item(item):
-            print(f"Added 1 {item!r} to the hotbar")
-        elif self._inventory.add_item(item):
-            print(f"Added 1 {item!r} to the inventory")
-        else:
-            print(f"Found 1 {item!r}, but both hotbar & inventory are full")
-            return True
-
-        self._world.remove_item(dropped_item)
         return False
 
 # Task 1.1 App class: Add a main function to instantiate the GUI here
-# ...
-
 def main():
     root = tk.Tk()
     Ninedraft(root)
