@@ -38,7 +38,6 @@ gameTitle = 'NineDraft V0.1 Matthew Choy'
 # for these tasks, we have defined it here
 GameData = namedtuple('GameData', ['world', 'player'])
 
-
 def create_block(*block_id):
     """(Block) Creates a block (this function can be thought of as a block factory)
 
@@ -111,6 +110,14 @@ def create_item(*item_id):
 
 # Task 1.3: Implement StatusView class here
 # ...
+class StatusView(tk.Frame):
+    def __init__(self, root):
+        sv_object = tk.Text(root, height=2, width=30)
+        sv_object.pack()
+        sv_object.insert(tk.END, "Health: 4, Food: 5")
+        sv_object.config(state="disabled")
+
+
 
 BLOCK_COLOURS = {
     'diamond': 'blue',
@@ -273,7 +280,7 @@ class Ninedraft:
         self.redraw()
 
         self.step()
-
+    
     def redraw(self):
         self._view.delete(tk.ALL)
 
@@ -288,8 +295,13 @@ class Ninedraft:
         # Task 1.2 Mouse Controls: Show/hide target here
         # ...
 
-        # if target in range
-        # display target
+        self.check_target()
+
+        if self._target_in_range:
+            player_position = self._player.get_position()
+            self._view.show_target(player_position, cursor_position)
+        else:
+            self._view.hide_target()
         
 
         # Task 1.3 StatusView: Update StatusView values here
@@ -424,7 +436,6 @@ class Ninedraft:
         raise KeyError(f"No effect defined for {effect}")
 
     def _right_click(self, event):
-        print("Right click")
 
         x, y = self._target_position
         target = self._world.get_thing(x, y)
@@ -520,8 +531,10 @@ class Ninedraft:
 # ...
 
 def main():
-    root = tk.Tk()
+    root = tk.Tk() # to allow exiting of app.
     Ninedraft(root)
+    StatusView(root)
+
     root.mainloop()
 
 if __name__ == "__main__":
