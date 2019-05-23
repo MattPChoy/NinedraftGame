@@ -304,7 +304,7 @@ class ItemGridView(tk.Canvas):
         for position, stack in items:
             self.draw_cell(position, stack, position == active_position)
 
-
+    
 class Grid:
     """A 2d grid to hold items"""
 
@@ -462,7 +462,7 @@ class SelectableGrid(Grid):
         if self._selected:
             return self[self._selected]
         else:
-            return None
+            return Nonese
 
     def select(self, position):
         """Selects the cell at 'position'

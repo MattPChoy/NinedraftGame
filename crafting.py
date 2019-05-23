@@ -38,11 +38,11 @@ class GridCrafter:
         self._output = None
         self._selected = None
 
-        for recipe in recipes:
-            if len(recipe) != rows and len(recipe[0]) != columns:
+        # Updated according to https://piazza.com/class/js9u1pw5tfl6f3?cid=1125
+        for recipe, result in recipes:
+            if len(recipe) != rows or len(recipe[0]) != columns:
                 raise ValueError(f"Wrong recipe dimensions; expecting {rows}x{columns} but "
-                                 f"got {len(recipe)}x{len(recipe[0])} with {recipe}")
-
+                                f"got {len(recipe)}x{len(recipe[0])} with {recipe}")
         self._recipes = recipes
 
     def find_match(self, ingredients):

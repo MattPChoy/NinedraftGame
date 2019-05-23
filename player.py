@@ -38,6 +38,10 @@ class Player(DynamicThing):
             self._food = 0
         elif self._food > self._max_food:
             self._food = self._max_food
+    
+    def get_max_food(self):
+        """(float) Returns tha player's maximum food"""
+        return self._max_food
 
     # The following methods do not require documentation as their purpose is
     # obvious/defined in the super class

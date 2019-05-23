@@ -113,6 +113,10 @@ class DynamicThing(PhysicalThing):
                     The (x, y) components of the new velocity
         """
         self.get_shape().body.velocity = velocity
+    
+    def get_max_health(self):
+        """(float) Returns the dynamic thing's maximum health"""
+        return self._max_health
 
 
 class BoundaryWall(PhysicalThing):

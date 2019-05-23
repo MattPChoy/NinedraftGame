@@ -8,6 +8,7 @@ __version__ = "1.1.0"
 __copyright__ = "The University of Queensland, 2019"
 
 import tkinter as tk
+from tkinter import *
 import random
 from collections import namedtuple
 
@@ -24,6 +25,8 @@ from core import positions_in_range
 from game import GameView, WorldViewRouter
 from mob import Bird
 
+from fooditem import FoodItem
+
 BLOCK_SIZE = 2 ** 5
 GRID_WIDTH = 2 ** 5
 GRID_HEIGHT = 2 ** 4
@@ -37,6 +40,13 @@ gameTitle = 'NineDraft V0.1 Matthew Choy'
 # subclasses, but since it will likely need to be extended
 # for these tasks, we have defined it here
 GameData = namedtuple('GameData', ['world', 'player'])
+root = 0
+
+class Utils():
+    @staticmethod
+    def roundhalf(number):
+        return round(number*2)/2
+        
 
 def create_block(*block_id):
     """(Block) Creates a block (this function can be thought of as a block factory)
@@ -104,6 +114,8 @@ def create_item(*item_id):
 
         # Task 1.4 Basic Items: Create wood & stone here
         # ...
+        elif item_type == "stone" or "wood":
+            return BlockItem(item_type)
 
     raise KeyError(f"No item defined for {item_id}")
 
@@ -111,11 +123,29 @@ def create_item(*item_id):
 # Task 1.3: Implement StatusView class here
 # ...
 class StatusView(tk.Frame):
-    def __init__(self, root):
-        sv_object = tk.Text(root, height=2, width=30)
-        sv_object.pack()
-        sv_object.insert(tk.END, "Health: 4, Food: 5")
-        sv_object.config(state="disabled")
+    def __init__(self, playerObject):
+        global root
+        self._master = root
+        self.player = playerObject
+
+        self.playerFood = Utils.roundhalf(self.player.get_food())
+        self.playerHealth = Utils.roundhalf(self.player.get_health())
+
+        
+
+        self._sv_text = f"Health: {self.playerHealth} Food: {self.playerFood}"
+
+        self._sv_object = tk.Label(root, text=self._sv_text)
+        self._sv_object.pack()
+
+    def updateSV(self):
+        print("sv updating")
+        self.playerFood = Utils.roundhalf(self.player.get_food())
+        self.playerHealth = Utils.roundhalf(self.player.get_health())
+        print(f"{self.playerFood}, {self.playerHealth}")
+
+        self._sv_object['text'] = (f"Health: {self.playerHealth} Food: {self.playerFood}")
+        self._sv_object.pack()
 
 
 
@@ -222,7 +252,8 @@ class Ninedraft:
         self._hot_bar.select((0, 0))
 
         starting_hotbar = [
-            Stack(create_item("dirt"), 20)
+            Stack(create_item("dirt"), 20),
+            Stack(create_item("FoodItem"), 4)
         ]
 
         for i, item in enumerate(starting_hotbar):
@@ -251,15 +282,19 @@ class Ninedraft:
           # Note that <Button-2> symbolises middle click.
         self._view.bind("<Button-3>", self._right_click)
         self._view.bind("<Motion>", self._mouse_move)
+        self._view.bind("<Leave>", self._mouse_leave)
 
         # Task 1.3: Create instance of StatusView here
         # ...
+        self._StatusView = StatusView(self._player)
 
         self._hot_bar_view = ItemGridView(master, self._hot_bar.get_size())
         self._hot_bar_view.pack(side=tk.TOP, fill=tk.X)
 
         # Task 1.5 Keyboard Controls: Bind to space bar for jumping here
         # ...
+
+        self._master.bind("<space>", self._jump)
 
         self._master.bind("a", lambda e: self._move(-1, 0))
         self._master.bind("<Left>", lambda e: self._move(-1, 0))
@@ -271,8 +306,15 @@ class Ninedraft:
         # Task 1.5 Keyboard Controls: Bind numbers to hotbar activation here
         # ...
 
+        for k in range(10):
+            key=k
+            self._master.bind(str(key), lambda e, key=key: self.hotbar_select(key))
+
         # Task 1.6 File Menu & Dialogs: Add file menu here
         # ...
+
+        self._master.bind("<Escape>", self.exitapp)
+        self._master.bind("<r>", self.restart)
 
         self._target_in_range = False
         self._target_position = 0, 0
@@ -280,6 +322,24 @@ class Ninedraft:
         self.redraw()
 
         self.step()
+
+    def exitapp(self, event=None):
+        self._master.destroy()
+
+    def restart(self, event=None):
+        self._master.destroy()
+        main()
+    
+    def hotbar_select(self, key):
+        hb_slot = None
+
+        # Since key will be 1 to 9,
+        if key == 0:
+            hb_slot = 9
+        else:
+            hb_slot = key-1
+        print(f"Selected hotbar slot {hb_slot} with {key}")
+        self._hot_bar.select((0, hb_slot)) 
     
     def redraw(self):
         self._view.delete(tk.ALL)
@@ -295,12 +355,12 @@ class Ninedraft:
         # Task 1.2 Mouse Controls: Show/hide target here
         # ...
 
-        self.check_target()
+        # self.check_target()
 
         if self._target_in_range:
             player_position = self._player.get_position()
             self._view.show_target(player_position, cursor_position)
-        else:
+        elif self._target_in_range:
             self._view.hide_target()
         
 
@@ -313,34 +373,46 @@ class Ninedraft:
     def step(self):
         data = GameData(self._world, self._player)
         self._world.step(data)
-        self.check_target()
         self.redraw()
 
         # Task 1.6 File Menu & Dialogs: Handle the player's death if necessary
         # ...
 
+        if self._player.is_dead():
+            self.restart()
+
         self._master.after(15, self.step)
 
     def _move(self, dx, dy):
+        self.check_target()
         velocity = self._player.get_velocity()
         self._player.set_velocity((velocity.x + dx * 80, velocity.y + dy * 80))
 
-    def _jump(self):
+    def _jump(self, event):
+        
         velocity = self._player.get_velocity()
         # Task 1.2: Update the player's velocity here
         # ...
 
-    def mine_block(self, block, x, y):
-        luck = random.random()
+        xvel = velocity[0]*0.5
+        yvel = velocity[1]-150
 
+        self._player.set_velocity((xvel, yvel))
+
+    def mine_block(self, block, x, y):
+
+        luck = random.random()
         active_item, effective_item = self.get_holding()
 
         was_item_suitable, was_attack_successful = block.mine(effective_item, active_item, luck)
 
         effective_item.attack(was_attack_successful)
 
-        food_decrease_factor = -0.2
-        health_decrease_factor = -0.1
+        # food_decrease_factor = -0.2
+        # health_decrease_factor = -0.1
+
+        food_decrease_factor = -1
+        health_decrease_factor = -1
 
         if block.is_mined():
             # Task 1.2 Mouse Controls: Reduce the player's food/health appropriately
@@ -351,6 +423,7 @@ class Ninedraft:
             else:
                 # If the player does not have food left, then decrease their health
                 self._player.change_health(health_decrease_factor)
+            self._StatusView.updateSV() # Update the status view bar
 
             # Task 1.2 Mouse Controls: Remove the block from the world & get its drops
             # ...
@@ -399,6 +472,10 @@ class Ninedraft:
     def _mouse_move(self, event):
         self._target_position = event.x, event.y
         self.check_target()
+
+    def _mouse_leave(self, event):
+        self._target_in_range = False
+        self._view.hide_target()
 
     def _left_click(self, event):
         # Invariant: (event.x, event.y) == self._target_position
@@ -452,6 +529,7 @@ class Ninedraft:
         else:
             # place active item
             selected = self._hot_bar.get_selected()
+            print(f"Using {selected}")
 
             if not selected:
                 return
@@ -476,6 +554,9 @@ class Ninedraft:
             x, y = event.x, event.y
 
             if drop_category == "block":
+                if not self._target_in_range:
+                    # If trying to place outside range
+                    return None
                 existing_block = self._world.get_block(x, y)
 
                 if not existing_block:
@@ -531,10 +612,9 @@ class Ninedraft:
 # ...
 
 def main():
+    global root
     root = tk.Tk() # to allow exiting of app.
     Ninedraft(root)
-    StatusView(root)
-
     root.mainloop()
 
 if __name__ == "__main__":
