@@ -97,6 +97,8 @@ def create_item(*item_id):
         >>> create_item("pickaxe", "stone")  # *with* Task 2.1.2 implemented
         ToolItem('stone_pickaxe')
     """
+
+
     if len(item_id) == 2:
 
         if item_id[0] in MATERIAL_TOOL_TYPES and item_id[1] in TOOL_DURABILITIES:
@@ -105,17 +107,26 @@ def create_item(*item_id):
     elif len(item_id) == 1:
 
         item_type = item_id[0]
+        print(f"Item id: {item_id} Item type: {item_type}")
 
         if item_type == "hands":
+            print(f"creating a hands object with {item_type}")
             return HandItem("hands")
 
         elif item_type == "dirt":
+            print(f"creating a dirt object with {item_type}")
             return BlockItem(item_type)
 
         # Task 1.4 Basic Items: Create wood & stone here
         # ...
-        elif item_type == "stone" or "wood":
+
+        elif item_type in ["stone", "wood"]:
+            print(f"creating a stone/wood object with {item_type}")
             return BlockItem(item_type)
+        
+        elif item_type == "apple":
+            print(f"creating an apple object with {item_type}")
+            return FoodItem("apple", 2)
 
     raise KeyError(f"No item defined for {item_id}")
 
@@ -253,7 +264,7 @@ class Ninedraft:
 
         starting_hotbar = [
             Stack(create_item("dirt"), 20),
-            Stack(create_item("FoodItem"), 4)
+            Stack(create_item("apple"), 4)
         ]
 
         for i, item in enumerate(starting_hotbar):
@@ -338,8 +349,9 @@ class Ninedraft:
             hb_slot = 9
         else:
             hb_slot = key-1
-        print(f"Selected hotbar slot {hb_slot} with {key}")
-        self._hot_bar.select((0, hb_slot)) 
+
+        self._hot_bar.select((0, hb_slot))
+        print(f"Selected hotbar slot {hb_slot} with {key}, containing {self.get_holding()} ") 
     
     def redraw(self):
         self._view.delete(tk.ALL)
@@ -528,14 +540,15 @@ class Ninedraft:
 
         else:
             # place active item
+            # selected = self.get_holding()
             selected = self._hot_bar.get_selected()
-            print(f"Using {selected}")
 
             if not selected:
                 return
 
             stack = self._hot_bar[selected]
             drops = stack.get_item().place()
+            print(f"Stack: {stack}, Drops: {drops}, GetItem: {stack.get_item()}")
 
             stack.subtract(1)
             if stack.get_quantity() == 0:

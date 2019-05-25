@@ -462,7 +462,7 @@ class SelectableGrid(Grid):
         if self._selected:
             return self[self._selected]
         else:
-            return Nonese
+            return None
 
     def select(self, position):
         """Selects the cell at 'position'

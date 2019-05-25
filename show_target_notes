@@ -52,3 +52,10 @@ def show_target(self, player_position, target_position, cursor_position=None,
         if cursor_fg_colour:
             self.create_line(horizontal, fill=cursor_fg_colour, tag='cursor')
             self.create_line(vertical, fill=cursor_fg_colour, tag='cursor')
+
+self._hot_bar = SelectableGrid(rows=1, columns=10)
+stack = self._hot_bar[selected]
+drops = stack.get_item().place()
+drop_category, drop_types = drops[0]
+
+SelectableGrid[1].get_item().place()[0][0]
