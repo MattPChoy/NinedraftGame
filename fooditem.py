@@ -1,18 +1,16 @@
 from item import Item
 
 class FoodItem(Item):
-    def __init__(self, itemid:str, strength:float):
+    def __init__(self, item_id:str, strength:float):
         print("FoodItem Init")
         self._strength = strength
-        self._id = itemid
+        self._id = item_id
         super().__init__(id_="apple")
 
     def get_strength(self) -> float:
         return self._strength
 
     def place(self):
-        print("FoodItem place")
-        print("placing food item")
         return [('effect', ('food', self.get_strength()))]
 
     def can_attack(self):

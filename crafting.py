@@ -210,8 +210,23 @@ class GridCrafterView(tk.Frame):
         """
         super().__init__(master)
 
+        self._master = master
+        self._item_grid = ItemGridView(master, input_size)
+
         # Task 2.2 Crafting: Create widgets here
         # ...
+
+        input_frame = tk.Frame(master)
+        input_frame.pack(side = tk.TOP)
+
+        self._input =ItemGridView(input_frame, input_size)
+        self._input.pack(side = tk.LEFT)
+
+        self._craft_button = tk.Button(input_frame, text="craft")
+        self._craft_button.pack(side = tk.LEFT)
+
+        self._output = ItemGridView(input_frame, (1,1))
+        self._output.pack(side = tk.LEFT)
 
     def render(self, key_stack_pairs, selected):
         """Renders the stacks at appropriate cells, as determined by 'key_stack_pairs'
@@ -224,16 +239,18 @@ class GridCrafterView(tk.Frame):
         """
         # Task 2.2 Crafting: Create widgets here
         # ...
-        # print(f"{selected} is selected")
+        print(f"{selected} is selected")
         for key, stack in key_stack_pairs:
             # print(f"Redrawing {stack} at {key}")
             if key == "output":
                 # Task 2.2 Crafting: Draw output cell
                 # ...
+                self._output.draw_cell((0, 0), stack, selected == key)
                 pass
             else:
                 # Task 2.2 Crafting: Draw input cells
                 # ...
+                self._input.draw_cell(key, stack, selected == key)
                 pass
 
     def bind_for_id(self, event, callback):
@@ -265,6 +282,7 @@ class GridCrafterView(tk.Frame):
         #    "output", (0, 0), (0, 1), (1, 0), (1, 1)
         #
         # ...
+
 
     # Task 2.2 Crafting: You may add additional methods here
     # ...

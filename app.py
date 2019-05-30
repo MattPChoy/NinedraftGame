@@ -9,9 +9,10 @@ __copyright__ = "The University of Queensland, 2019"
 
 import tkinter as tk
 from tkinter import *
+from tkinter import messagebox
 import random
 from collections import namedtuple
-
+import os, sys
 import pymunk
 
 from block import Block, ResourceBlock, BREAK_TABLES, LeafBlock, TrickCandleFlameBlock
@@ -19,11 +20,13 @@ from grid import Stack, Grid, SelectableGrid, ItemGridView
 from item import Item, SimpleItem, HandItem, BlockItem, MATERIAL_TOOL_TYPES, TOOL_DURABILITIES
 from player import Player
 from dropped_item import DroppedItem
-from crafting import GridCrafter, CraftingWindow
+from crafting import GridCrafter, CraftingWindow, GridCrafterView
 from world import World
 from core import positions_in_range
 from game import GameView, WorldViewRouter
 from mob import Bird
+from hotbaritem import HotbarItem
+from toolitem import ToolItem
 
 from fooditem import FoodItem
 
@@ -40,7 +43,6 @@ gameTitle = 'NineDraft V0.1 Matthew Choy'
 # subclasses, but since it will likely need to be extended
 # for these tasks, we have defined it here
 GameData = namedtuple('GameData', ['world', 'player'])
-root = 0
 
 class Utils():
     @staticmethod
@@ -121,12 +123,15 @@ def create_item(*item_id):
         # ...
 
         elif item_type in ["stone", "wood"]:
-            print(f"creating a stone/wood object with {item_type}")
+            print(f"creating a stone or wood object with {item_type}")
             return BlockItem(item_type)
         
         elif item_type == "apple":
             print(f"creating an apple object with {item_type}")
             return FoodItem("apple", 2)
+
+        elif item_type == "stick":
+            return HotbarItem("stick")
 
     raise KeyError(f"No item defined for {item_id}")
 
@@ -134,26 +139,29 @@ def create_item(*item_id):
 # Task 1.3: Implement StatusView class here
 # ...
 class StatusView(tk.Frame):
-    def __init__(self, playerObject):
-        global root
+    def __init__(self, playerObject, root):
         self._master = root
         self.player = playerObject
 
+        self.frame = tk.Frame()
+
         self.playerFood = Utils.roundhalf(self.player.get_food())
         self.playerHealth = Utils.roundhalf(self.player.get_health())
 
-        
+        # self._sv_foodImage = PhotoImage(file="food.png", master=self.frame)
+        # self._sv_healthImage = PhotoImage(file="health.png", master=self.frame)
 
         self._sv_text = f"Health: {self.playerHealth} Food: {self.playerFood}"
-
-        self._sv_object = tk.Label(root, text=self._sv_text)
+        
+        self._sv_object = tk.Label(self.frame, text=self._sv_text)
         self._sv_object.pack()
+        self.frame.pack()
 
     def updateSV(self):
-        print("sv updating")
+        # print("sv updating")
         self.playerFood = Utils.roundhalf(self.player.get_food())
         self.playerHealth = Utils.roundhalf(self.player.get_health())
-        print(f"{self.playerFood}, {self.playerHealth}")
+        # print(f"{self.playerFood}, {self.playerHealth}")
 
         self._sv_object['text'] = (f"Health: {self.playerHealth} Food: {self.playerFood}")
         self._sv_object.pack()
@@ -181,6 +189,16 @@ ITEM_COLOURS = {
     'furnace': 'black',
     'cooked_apple': 'red4'
 }
+
+CRAFTING_RECIPES_2x2 = [
+    (
+        (
+            (None, 'wood'),
+            (None, 'wood')
+        ),
+        Stack(create_item('stick'), 4)
+    ),
+]
 
 
 def load_simple_world(world):
@@ -280,7 +298,8 @@ class Ninedraft:
         for position, stack in starting_inventory:
             self._inventory[position] = stack
 
-        self._crafting_window = None
+        self._crafting_window_size = (3,3)
+        #self._crafting_window = GridCrafterView(root, self._crafting_window_size)
         self._master.bind("e",
                           lambda e: self.run_effect(('crafting', 'basic')))
 
@@ -297,7 +316,7 @@ class Ninedraft:
 
         # Task 1.3: Create instance of StatusView here
         # ...
-        self._StatusView = StatusView(self._player)
+        self._StatusView = StatusView(self._player, self._master)
 
         self._hot_bar_view = ItemGridView(master, self._hot_bar.get_size())
         self._hot_bar_view.pack(side=tk.TOP, fill=tk.X)
@@ -330,16 +349,23 @@ class Ninedraft:
         self._target_in_range = False
         self._target_position = 0, 0
 
+        self._currently_crafting = False
+
         self.redraw()
 
         self.step()
 
     def exitapp(self, event=None):
-        self._master.destroy()
+        if messagebox.askokcancel("Quit", "Do you want to quit"):
+            self._master.destroy()
 
     def restart(self, event=None):
-        self._master.destroy()
-        main()
+        # self.exitapp()
+        # main()
+
+        if messagebox.askokcancel("Restart Game", "Do you want to restart the game?"):
+            python = sys.executable
+            os.execl(python, python *sys.argv)
     
     def hotbar_select(self, key):
         hb_slot = None
@@ -378,6 +404,7 @@ class Ninedraft:
 
         # Task 1.3 StatusView: Update StatusView values here
         # ...
+        self._StatusView.updateSV()
 
         # hot bar
         self._hot_bar_view.render(self._hot_bar.items(), self._hot_bar.get_selected())
@@ -435,7 +462,8 @@ class Ninedraft:
             else:
                 # If the player does not have food left, then decrease their health
                 self._player.change_health(health_decrease_factor)
-            self._StatusView.updateSV() # Update the status view bar
+            # Update the status view bar
+            # self._StatusView.updateSV()
 
             # Task 1.2 Mouse Controls: Remove the block from the world & get its drops
             # ...
@@ -501,7 +529,21 @@ class Ninedraft:
 
     def _trigger_crafting(self, craft_type):
         print(f"Crafting with {craft_type}")
-        # crafter = GridCrafter(CRAFTING_RECIPES_2x2)
+
+        
+        if craft_type == "basic":
+            crafter = GridCrafter(CRAFTING_RECIPES_2x2)
+        """
+        else:
+             crafter = GridCrafter(CRAFTING_RECIPES_3x3, rows=3, columns=3)
+        """
+        # (self, master, title, hot_bar: Grid, inventory: Grid, crafter: GridCrafter)
+
+
+        # Crafting menu is not currently open
+        self._craftingui = CraftingWindow(self._master, "Ninedraft Crafting Menu", self._hot_bar, self._inventory, crafter)
+        self._craftingui.bind("e", lambda e: self._craftingui.destroy())
+        self._currently_crafting = True
 
     def run_effect(self, effect):
         if len(effect) == 2:
@@ -520,6 +562,7 @@ class Ninedraft:
                 stat, strength = effect
                 print(f"Gaining {strength} {stat}!")
                 getattr(self._player, f"change_{stat}")(strength)
+                self._StatusView.updateSV()
                 return
 
         raise KeyError(f"No effect defined for {effect}")
@@ -625,7 +668,6 @@ class Ninedraft:
 # ...
 
 def main():
-    global root
     root = tk.Tk() # to allow exiting of app.
     Ninedraft(root)
     root.mainloop()
