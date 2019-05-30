@@ -2,7 +2,6 @@ from item import Item
 
 class FoodItem(Item):
     def __init__(self, item_id:str, strength:float):
-        print("FoodItem Init")
         self._strength = strength
         self._id = item_id
         super().__init__(id_="apple")

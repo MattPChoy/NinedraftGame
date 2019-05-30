@@ -82,6 +82,7 @@ class GridCrafter:
 
         if not recipe:
             print("No matching recipe")
+            print(f"Ingredients: {ingredients}, Rec: {recipe}")
         else:
             result = recipe[1].copy()
             print("Crafts to: ", result)
@@ -219,7 +220,7 @@ class GridCrafterView(tk.Frame):
         input_frame = tk.Frame(master)
         input_frame.pack(side = tk.TOP)
 
-        self._input =ItemGridView(input_frame, input_size)
+        self._input = ItemGridView(input_frame, input_size)
         self._input.pack(side = tk.LEFT)
 
         self._craft_button = tk.Button(input_frame, text="craft")
@@ -227,6 +228,10 @@ class GridCrafterView(tk.Frame):
 
         self._output = ItemGridView(input_frame, (1,1))
         self._output.pack(side = tk.LEFT)
+
+        self.BORDER = 100  # BORDER//2 + |item grid| + BORDER//2
+        self.CELL_LENGTH = 64  # pixel width of grid cell
+        self.CELL_SPACING = 5  # pixel spacing between grid cells
 
     def render(self, key_stack_pairs, selected):
         """Renders the stacks at appropriate cells, as determined by 'key_stack_pairs'
@@ -263,6 +268,11 @@ class GridCrafterView(tk.Frame):
         if event not in TK_MOUSE_EVENTS:
             return
 
+        self._input.bind(event, lambda e: callback(self.xy_to_grid((e.x, e.y)), e))
+        self._output.bind(event, lambda e: callback("output", e))
+        self._craft_button.bind(event, lambda e: callback("craft", e))
+
+
         # Task 2.2 Crafting: Bind to tkinter widgets here
         # When a cell is clicked, we need to call the callback. Tkinter's bind does
         # this for us, but not exactly how we want. Tkinter bound callbacks have a single
@@ -286,6 +296,27 @@ class GridCrafterView(tk.Frame):
 
     # Task 2.2 Crafting: You may add additional methods here
     # ...
+
+    def set_button_method(self, newmethod):
+        self._craft_button['command'] = newmethod
+
+    def xy_to_grid(self, xy_position):
+        """Returns the grid position of the cell that contains the 'xy_position'
+
+        Parameters:
+            xy_position (tuple<float, float>):
+                (x, y) coordinates contained by some cell
+        
+        Return:
+            (tuple<int, int>): The (row, column) grid position of the cell
+        """
+
+        x, y = xy_position
+
+        column = (x-self.BORDER // 2) // (self.CELL_LENGTH + self.CELL_SPACING)
+        row = (y - self.BORDER // 2) // (self.CELL_LENGTH + self.CELL_SPACING)
+        
+        return row, column
 
 
 class CraftingWindow(tk.Toplevel):
@@ -329,6 +360,13 @@ class CraftingWindow(tk.Toplevel):
                                     lambda key, e, widget_key=widget_key: self._handle_right_click(widget_key, key, e))
 
         self.redraw()
+        # change command of craft button here?
+
+        # change the command of the button here, after GridCrafter has been initiated
+        self._GridCrafter = self._source_views['crafter']
+        self._GridCrafterView = self._sources['crafter']
+
+        self._GridCrafter.set_button_method(self._GridCrafterView.craft)
 
     def _load_crafter_view(self):
         """Loads the appropriate crafter view"""

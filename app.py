@@ -131,7 +131,12 @@ def create_item(*item_id):
             return FoodItem("apple", 2)
 
         elif item_type == "stick":
-            return HotbarItem("stick")
+            return SimpleItem(item_type)
+        
+        elif item_type == "coal" or item_type == "torch":
+            return SimpleItem(item_type)
+        
+
 
     raise KeyError(f"No item defined for {item_id}")
 
@@ -198,8 +203,26 @@ CRAFTING_RECIPES_2x2 = [
         ),
         Stack(create_item('stick'), 4)
     ),
-]
 
+    (
+        (
+            ('stick', 'stick'),
+            ('stick', 'stick')
+        ),
+        Stack(create_item('wood'), 2)
+    ),
+
+    (
+        (
+            ('coal', None),
+            ('stick', None),
+        ),
+        Stack(create_item('torch'), 4)
+    )
+
+    # TODO: Add crafting table
+    # TODO: Add another recipe
+]
 
 def load_simple_world(world):
     """Loads blocks into a world
@@ -290,16 +313,16 @@ class Ninedraft:
 
         self._hands = create_item('hands')
 
-        starting_inventory = [
+        self.starting_inventory = [
             ((1, 5), Stack(Item('dirt'), 10)),
             ((0, 2), Stack(Item('wood'), 10)),
+            ((0, 0), Stack(SimpleItem('coal'), 4)),
         ]
         self._inventory = Grid(rows=3, columns=10)
-        for position, stack in starting_inventory:
+        for position, stack in self.starting_inventory:
             self._inventory[position] = stack
 
         self._crafting_window_size = (3,3)
-        #self._crafting_window = GridCrafterView(root, self._crafting_window_size)
         self._master.bind("e",
                           lambda e: self.run_effect(('crafting', 'basic')))
 
@@ -365,7 +388,10 @@ class Ninedraft:
 
         if messagebox.askokcancel("Restart Game", "Do you want to restart the game?"):
             python = sys.executable
-            os.execl(python, python *sys.argv)
+            os.execl(python, python, *sys.argv)
+            #reset the items in the inventory
+            for position, stack in self.starting_inventory:
+                self._inventory[position] = stack
     
     def hotbar_select(self, key):
         hb_slot = None
@@ -393,8 +419,6 @@ class Ninedraft:
         # Task 1.2 Mouse Controls: Show/hide target here
         # ...
 
-        # self.check_target()
-
         if self._target_in_range:
             player_position = self._player.get_position()
             self._view.show_target(player_position, cursor_position)
@@ -413,7 +437,10 @@ class Ninedraft:
         data = GameData(self._world, self._player)
         self._world.step(data)
         self.redraw()
-
+        try:
+            self._craftingui.redraw()
+        except:
+            pass
         # Task 1.6 File Menu & Dialogs: Handle the player's death if necessary
         # ...
 
@@ -668,7 +695,7 @@ class Ninedraft:
 # ...
 
 def main():
-    root = tk.Tk() # to allow exiting of app.
+    root = tk.Tk()
     Ninedraft(root)
     root.mainloop()
 
