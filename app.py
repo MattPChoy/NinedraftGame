@@ -108,9 +108,9 @@ def create_item(*item_id):
     if len(item_id) == 2:
 
         if item_id[0] in MATERIAL_TOOL_TYPES and item_id[1] in TOOL_DURABILITIES:
-            print(f"Item id[0]: {item_id[0]}, {MATERIAL_TOOL_TYPES}, {item_id[1]}, {TOOL_DURABILITIES}")
-            
-            raise NotImplementedError("Tool creation is not yet handled")
+            tool_type, tool_material = item_id
+            durability = TOOL_DURABILITIES[tool_material]
+            return ToolItem(tool_type, tool_material, durability)
 
     elif len(item_id) == 1:
 
@@ -225,7 +225,6 @@ CRAFTING_RECIPES_2x2 = [
     # TODO: Add crafting table
     # TODO: Add another recipe
 ]
-"""
 CRAFTING_RECIPES_3x3 = {
     (
         (
@@ -268,7 +267,6 @@ CRAFTING_RECIPES_3x3 = {
         Stack(create_item('sword', 'wood'), 1)
     )
 }
-"""
 def load_simple_world(world):
     """Loads blocks into a world
 
@@ -381,7 +379,7 @@ class Ninedraft:
           # Note that <Button-2> symbolises middle click.
         self._view.bind("<Button-3>", self._right_click)
         self._view.bind("<Motion>", self._mouse_move)
-        self._view.bind("<Leave>", lambda e:self._mouse_leave)
+        self._view.bind("<Leave>", self._mouse_leave)
 
         # Task 1.3: Create instance of StatusView here
         # ...
@@ -590,7 +588,8 @@ class Ninedraft:
         self._target_position = event.x, event.y
         self.check_target()
 
-    def _mouse_leave(self):
+    def _mouse_leave(self, event):
+        # hide the target if it leaves the screen
         self._target_in_range = False
         self._view.hide_target()
 
