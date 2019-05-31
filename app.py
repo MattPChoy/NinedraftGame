@@ -139,7 +139,7 @@ def create_item(*item_id):
         elif item_type == "stick":
             return Item(item_type)
         
-        elif item_type == "coal" or item_type == "torch":
+        elif item_type == "coal" or item_type == "torch" or item_type == "wooden_planks":
             return Item(item_type)   
 
         elif item_type == "crafting_table":
@@ -220,10 +220,23 @@ CRAFTING_RECIPES_2x2 = [
             ('stick', None),
         ),
         Stack(create_item('torch'), 4)
-    )
+    ),
 
-    # TODO: Add crafting table
-    # TODO: Add another recipe
+    (
+        (
+            ('wood', 'wood'),
+            ('wood', 'wood')
+        ),
+        Stack(create_item("crafting_table"), 1)
+    ),
+
+    (
+        (
+            ('wood', None),
+            (None, None)
+        ),
+        Stack(create_item("wooden_planks"), 3)
+    )
 ]
 CRAFTING_RECIPES_3x3 = {
     (
@@ -373,6 +386,14 @@ class Ninedraft:
         self._view = GameView(master, self._world.get_pixel_size(), WorldViewRouter(BLOCK_COLOURS, ITEM_COLOURS))
         self._view.pack()
 
+        self._menu = tk.Menu(master = self._view)
+        self._master.config(menu=self._menu)
+        self._filemenu = tk.Menu(self._menu, tearoff=0)
+        self._filemenu.add_command(label="Restart", command=self.restart)
+        self._filemenu.add_command(label="Exit", command=self.exitapp)
+        self._menu.add_cascade(label="File", menu=self._filemenu)
+        
+
         # Task 1.2 Mouse Controls: Bind mouse events here
         # ...
         self._view.bind("<Button-1>", self._left_click)
@@ -432,11 +453,15 @@ class Ninedraft:
         # main()
 
         if messagebox.askokcancel("Restart Game", "Do you want to restart the game?"):
-            python = sys.executable
-            os.execl(python, python, *sys.argv)
-            #reset the items in the inventory
-            for position, stack in self.starting_inventory:
-                self._inventory[position] = stack
+            self.reset()
+    
+    def reset(self):
+        python = sys.executable
+        os.execl(python, python, *sys.argv)
+        #reset the items in the inventory
+        for position, stack in self.starting_inventory:
+            self._inventory[position] = stack
+
     
     def hotbar_select(self, key):
         hb_slot = None
@@ -491,8 +516,12 @@ class Ninedraft:
         # ...
 
         if self._player.is_dead():
-            self.restart()
-
+            if messagebox.askyesno("Player death event", 
+                                   "Sorry you have died, do you want to restart?"):
+                self.reset()
+            else:
+                self._view.destroy()
+                
         self._master.after(15, self.step)
 
     def _move(self, dx, dy):
