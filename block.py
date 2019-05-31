@@ -175,11 +175,14 @@ class LeafBlock(Block):
         print("Kayn't nobudy use a leaf blahk foo")
 
     def get_drops(self, luck, correct_item_used):
+        print("c0")
         """Drops an apple 30% of the time if the wrong tool was used
 
         See Block.get_drops for parameters & return"""
         if not correct_item_used:
+            print(f"c1, Luck: {luck}")
             if luck < 0.3:
+                print("apple should drop")
                 return [('item', ('apple',))]
 
     def __repr__(self):

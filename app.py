@@ -27,7 +27,7 @@ from game import GameView, WorldViewRouter
 from mob import Bird
 from hotbaritem import HotbarItem
 from toolitem import ToolItem
-
+from craftingtable import CraftingTableBlock
 from fooditem import FoodItem
 
 BLOCK_SIZE = 2 ** 5
@@ -70,11 +70,14 @@ def create_block(*block_id):
         block_id = block_id[0]
         if block_id == "leaf":
             return LeafBlock()
+        elif block_id == "crafting_table":
+            return CraftingTableBlock()
         elif block_id in BREAK_TABLES:
             return ResourceBlock(block_id, BREAK_TABLES[block_id])
 
     elif block_id[0] == 'mayhem':
         return TrickCandleFlameBlock(block_id[1])
+        
 
     raise KeyError(f"No block defined for {block_id}")
 
@@ -99,11 +102,14 @@ def create_item(*item_id):
         >>> create_item("pickaxe", "stone")  # *with* Task 2.1.2 implemented
         ToolItem('stone_pickaxe')
     """
-
+    if item_id == "apple":
+        return FoodItem("apple", 2)
 
     if len(item_id) == 2:
 
         if item_id[0] in MATERIAL_TOOL_TYPES and item_id[1] in TOOL_DURABILITIES:
+            print(f"Item id[0]: {item_id[0]}, {MATERIAL_TOOL_TYPES}, {item_id[1]}, {TOOL_DURABILITIES}")
+            
             raise NotImplementedError("Tool creation is not yet handled")
 
     elif len(item_id) == 1:
@@ -131,11 +137,14 @@ def create_item(*item_id):
             return FoodItem("apple", 2)
 
         elif item_type == "stick":
-            return SimpleItem(item_type)
+            return Item(item_type)
         
         elif item_type == "coal" or item_type == "torch":
-            return SimpleItem(item_type)
-        
+            return Item(item_type)   
+
+        elif item_type == "crafting_table":
+            print("creating crafting table")
+            return BlockItem(item_type)    
 
 
     raise KeyError(f"No item defined for {item_id}")
@@ -144,32 +153,25 @@ def create_item(*item_id):
 # Task 1.3: Implement StatusView class here
 # ...
 class StatusView(tk.Frame):
-    def __init__(self, playerObject, root):
+    def __init__(self, root):
+        super().__init__(root)
         self._master = root
-        self.player = playerObject
 
-        self.frame = tk.Frame()
+        self._heart = tk.PhotoImage(file="images/health.png")
+        tk.Label(self, image=self._heart).pack(side=tk.LEFT)
+        self._hearttxt = tk.Label(self, text= "health")
+        self._hearttxt.pack(side = tk.LEFT)
 
-        self.playerFood = Utils.roundhalf(self.player.get_food())
-        self.playerHealth = Utils.roundhalf(self.player.get_health())
-
-        # self._sv_foodImage = PhotoImage(file="food.png", master=self.frame)
-        # self._sv_healthImage = PhotoImage(file="health.png", master=self.frame)
-
-        self._sv_text = f"Health: {self.playerHealth} Food: {self.playerFood}"
-        
-        self._sv_object = tk.Label(self.frame, text=self._sv_text)
-        self._sv_object.pack()
-        self.frame.pack()
-
-    def updateSV(self):
-        # print("sv updating")
-        self.playerFood = Utils.roundhalf(self.player.get_food())
-        self.playerHealth = Utils.roundhalf(self.player.get_health())
-        # print(f"{self.playerFood}, {self.playerHealth}")
-
-        self._sv_object['text'] = (f"Health: {self.playerHealth} Food: {self.playerFood}")
-        self._sv_object.pack()
+        self._food = tk.PhotoImage(file="images/food.png")
+        tk.Label(self, image=self._food).pack(side=tk.LEFT)
+        self._foodtxt = tk.Label(self, text= "food")
+        self._foodtxt.pack(side = tk.LEFT)
+    
+    def update_health(self, newhealth):
+        self._hearttxt['text'] = f"Health {newhealth}"
+    
+    def update_food(self, newfood):
+        self._foodtxt['text'] = f"Food {newfood}"
 
 
 
@@ -223,7 +225,50 @@ CRAFTING_RECIPES_2x2 = [
     # TODO: Add crafting table
     # TODO: Add another recipe
 ]
-
+"""
+CRAFTING_RECIPES_3x3 = {
+    (
+        (
+            (None, None, None),
+            (None, 'wood', None),
+            (None, 'wood', None)
+        ),
+        Stack(create_item('stick'), 16)
+    ),
+    (
+        (
+            ('wood', 'wood', 'wood'),
+            (None, 'stick', None),
+            (None, 'stick', None)
+        ),
+        Stack(create_item('pickaxe', 'wood'), 1)
+    ),
+    (
+        (
+            ('wood', 'wood', None),
+            ('wood', 'stick', None),
+            (None, 'stick', None)
+        ),
+        Stack(create_item('axe', 'wood'), 1)
+    ),
+    (
+        (
+            (None, 'wood', None),
+            (None, 'stick', None),
+            (None, 'stick', None)
+        ),
+        Stack(create_item('shovel', 'wood'), 1)
+    ),
+    (
+        (
+            (None, 'stone', None),
+            (None, 'stone', None),
+            (None, 'stick', None)
+        ),
+        Stack(create_item('sword', 'wood'), 1)
+    )
+}
+"""
 def load_simple_world(world):
     """Loads blocks into a world
 
@@ -305,7 +350,8 @@ class Ninedraft:
 
         starting_hotbar = [
             Stack(create_item("dirt"), 20),
-            Stack(create_item("apple"), 4)
+            Stack(create_item("apple"), 4),
+            Stack(create_item("crafting_table"), 1)
         ]
 
         for i, item in enumerate(starting_hotbar):
@@ -335,11 +381,12 @@ class Ninedraft:
           # Note that <Button-2> symbolises middle click.
         self._view.bind("<Button-3>", self._right_click)
         self._view.bind("<Motion>", self._mouse_move)
-        self._view.bind("<Leave>", self._mouse_leave)
+        self._view.bind("<Leave>", lambda e:self._mouse_leave)
 
         # Task 1.3: Create instance of StatusView here
         # ...
-        self._StatusView = StatusView(self._player, self._master)
+        self._StatusView = StatusView(self._master)
+        self._StatusView.pack()
 
         self._hot_bar_view = ItemGridView(master, self._hot_bar.get_size())
         self._hot_bar_view.pack(side=tk.TOP, fill=tk.X)
@@ -428,7 +475,8 @@ class Ninedraft:
 
         # Task 1.3 StatusView: Update StatusView values here
         # ...
-        self._StatusView.updateSV()
+        self._StatusView.update_food(self._player.get_food())
+        self._StatusView.update_health(self._player.get_health())
 
         # hot bar
         self._hot_bar_view.render(self._hot_bar.items(), self._hot_bar.get_selected())
@@ -493,8 +541,10 @@ class Ninedraft:
             # self._StatusView.updateSV()
 
             # Task 1.2 Mouse Controls: Remove the block from the world & get its drops
-            # ...
-            drops = block.get_drops(luck, True)
+            # ...   
+               
+
+            drops = block.get_drops(luck, was_item_suitable)
             self._world.remove_block(block)
 
             if not drops:
@@ -540,7 +590,7 @@ class Ninedraft:
         self._target_position = event.x, event.y
         self.check_target()
 
-    def _mouse_leave(self, event):
+    def _mouse_leave(self):
         self._target_in_range = False
         self._view.hide_target()
 
@@ -557,13 +607,10 @@ class Ninedraft:
     def _trigger_crafting(self, craft_type):
         print(f"Crafting with {craft_type}")
 
-        
         if craft_type == "basic":
             crafter = GridCrafter(CRAFTING_RECIPES_2x2)
-        """
         else:
              crafter = GridCrafter(CRAFTING_RECIPES_3x3, rows=3, columns=3)
-        """
         # (self, master, title, hot_bar: Grid, inventory: Grid, crafter: GridCrafter)
 
 
@@ -586,10 +633,20 @@ class Ninedraft:
                 self._trigger_crafting(craft_type)
                 return
             elif effect[0] in ("food", "health"):
+                print(f"Effect: {effect}, Effect[0]: {effect[0]}")
                 stat, strength = effect
-                print(f"Gaining {strength} {stat}!")
-                getattr(self._player, f"change_{stat}")(strength)
-                self._StatusView.updateSV()
+                
+
+                if (self._player.get_food() < self._player.get_max_food()):
+                    effect_to_change = "food"
+                else:
+                    effect_to_change = "health"
+                getattr(self._player, f"change_{effect_to_change}")(strength)
+                
+                print(f"Gaining {strength} {effect_to_change}!")
+
+                self._StatusView.update_food(self._player.get_food())
+                self._StatusView.update_health(self._player.get_health())
                 return
 
         raise KeyError(f"No effect defined for {effect}")
