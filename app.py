@@ -29,6 +29,7 @@ from hotbaritem import HotbarItem
 from toolitem import ToolItem
 from craftingtable import CraftingTableBlock
 from fooditem import FoodItem
+from sheep import Sheep, mobRouter
 
 BLOCK_SIZE = 2 ** 5
 GRID_WIDTH = 2 ** 5
@@ -74,6 +75,8 @@ def create_block(*block_id):
             return CraftingTableBlock()
         elif block_id in BREAK_TABLES:
             return ResourceBlock(block_id, BREAK_TABLES[block_id])
+        elif block_id == "wool":
+            return ResourceBlock(block_id, BREAK_TABLES["dirt"])
 
     elif block_id[0] == 'mayhem':
         return TrickCandleFlameBlock(block_id[1])
@@ -129,22 +132,22 @@ def create_item(*item_id):
         # ...
 
         elif item_type in ["stone", "wood"]:
-            print(f"creating a stone or wood object with {item_type}")
             return BlockItem(item_type)
         
         elif item_type == "apple":
-            print(f"creating an apple object with {item_type}")
             return FoodItem("apple", 2)
 
         elif item_type == "stick":
             return Item(item_type)
         
-        elif item_type == "coal" or item_type == "torch" or item_type == "wooden_planks":
+        elif item_type in ["coal", "torch", "wooden_planks", "coal_block"]:
             return Item(item_type)   
 
         elif item_type == "crafting_table":
-            print("creating crafting table")
             return BlockItem(item_type)    
+        
+        elif item_type == "wool":
+            return BlockItem(item_type)
 
 
     raise KeyError(f"No item defined for {item_id}")
@@ -154,6 +157,17 @@ def create_item(*item_id):
 # ...
 class StatusView(tk.Frame):
     def __init__(self, root):
+        """
+        A class to intialise the menu bar associated with the StatusView class.
+        +----------------------------------------------------+
+        | [♥] Food: (food value) [🐔] Health: (health value) |
+        +----------------------------------------------------+
+
+        Parameters:
+            root: Tkinter root object
+        Returns:
+            None
+        """
         super().__init__(root)
         self._master = root
 
@@ -168,9 +182,21 @@ class StatusView(tk.Frame):
         self._foodtxt.pack(side = tk.LEFT)
     
     def update_health(self, newhealth):
+        """
+        Parameters:
+            newhealth: The new value of the player's health, to be updated in the StatusView object.
+        Returns:
+            None
+        """
         self._hearttxt['text'] = f"Health {newhealth}"
     
     def update_food(self, newfood):
+        """
+        Parameters:
+            newhealth: The new value of the player's health, to be updated in the StatusView object.
+        Returns:
+            None
+        """
         self._foodtxt['text'] = f"Food {newfood}"
 
 
@@ -183,6 +209,7 @@ BLOCK_COLOURS = {
     'leaves': 'green',
     'crafting_table': 'pink',
     'furnace': 'black',
+    'wool': 'white'
 }
 
 ITEM_COLOURS = {
@@ -194,7 +221,8 @@ ITEM_COLOURS = {
     'leaves': 'green',
     'crafting_table': 'pink',
     'furnace': 'black',
-    'cooked_apple': 'red4'
+    'cooked_apple': 'red4',
+    'wool': 'white'
 }
 
 CRAFTING_RECIPES_2x2 = [
@@ -278,7 +306,16 @@ CRAFTING_RECIPES_3x3 = {
             (None, 'stick', None)
         ),
         Stack(create_item('sword', 'wood'), 1)
+    ),
+    (
+        (
+            ('coal', 'coal', 'coal'),
+            ('coal', 'coal', 'coal'),
+            ('coal', 'coal', 'coal')
+        ),
+        Stack(create_item('coal_block'), 1)
     )
+
 }
 def load_simple_world(world):
     """Loads blocks into a world
@@ -334,6 +371,7 @@ def load_simple_world(world):
 
     world.add_mob(Bird("friendly_bird", (12, 12)), 400, 100)
 
+    world.add_mob(Sheep("sheep", (35, 15)), 400, 300)
 
 class Ninedraft:
     """High-level app class for Ninedraft, a 2d sandbox game"""
@@ -383,7 +421,7 @@ class Ninedraft:
         self._master.bind("e",
                           lambda e: self.run_effect(('crafting', 'basic')))
 
-        self._view = GameView(master, self._world.get_pixel_size(), WorldViewRouter(BLOCK_COLOURS, ITEM_COLOURS))
+        self._view = GameView(master, self._world.get_pixel_size(), mobRouter(BLOCK_COLOURS, ITEM_COLOURS))
         self._view.pack()
 
         self._menu = tk.Menu(master = self._view)
@@ -393,6 +431,8 @@ class Ninedraft:
         self._filemenu.add_command(label="Exit", command=self.exitapp)
         self._menu.add_cascade(label="File", menu=self._filemenu)
         
+        # Popup when closing using [x]
+        self._master.protocol("WM_DELETE_WINDOW", self.exitapp)
 
         # Task 1.2 Mouse Controls: Bind mouse events here
         # ...
@@ -445,25 +485,59 @@ class Ninedraft:
         self.step()
 
     def exitapp(self, event=None):
+        """
+        Upon execution, open a dialog box and ask the user if they want to quit the app.
+        > If they want to quit the app, destroy the window.
+        > If they don't want to, do nothing.
+
+        Parameters:
+            Event: The event object
+        
+        """
         if messagebox.askokcancel("Quit", "Do you want to quit"):
             self._master.destroy()
+        else:
+            pass
 
     def restart(self, event=None):
+        """
+        Ask the user if they would like to restart the game. 
+        > If the user wants to restart the game, execute the reset function.
+        > Otherwise, do nothing
+        """
         # self.exitapp()
         # main()
 
         if messagebox.askokcancel("Restart Game", "Do you want to restart the game?"):
             self.reset()
+        else:
+            pass
     
     def reset(self):
+        """
+        A function designed to reset the view window.
+
+        Reset each position in the inventory to that as expected.
+        """
         python = sys.executable
         os.execl(python, python, *sys.argv)
         #reset the items in the inventory
         for position, stack in self.starting_inventory:
             self._inventory[position] = stack
 
+        return
+
     
     def hotbar_select(self, key):
+        """
+        A function designed to do some simple operations on the key pressed, and 
+        to translate that into changing the active hotbar slot.
+
+        Parameters:
+            Key: Button that was pressed.
+        Returns:
+            None
+        """
         hb_slot = None
 
         # Since key will be 1 to 9,
@@ -474,6 +548,8 @@ class Ninedraft:
 
         self._hot_bar.select((0, hb_slot))
         print(f"Selected hotbar slot {hb_slot} with {key}, containing {self.get_holding()} ") 
+
+        return
     
     def redraw(self):
         self._view.delete(tk.ALL)
@@ -594,6 +670,35 @@ class Ninedraft:
                     self._world.add_block(create_block(*drop_types), x, y)
                 else:
                     raise KeyError(f"Unknown drop category {drop_category}")
+    
+    def attack_mob(self, mob, x, y):
+        """
+        A function adapted from mine_block used to attack the mob. 
+
+        Parameters:
+            mob: the mob object
+            x: the x position of the cursor
+            y: the y position of the cursor
+        """
+        drops = mob.get_drops()
+
+        x0, y0 = mob.get_position()
+
+        for i, (drop_category, drop_types) in enumerate(drops):
+            print(f'Dropped {drop_category}, {drop_types}')
+
+            if drop_category == "item":
+                physical = DroppedItem(create_item(*drop_types))
+
+                # this is so bleh
+                x = x0 - BLOCK_SIZE // 2 + 5 + (i % 3) * 11 + random.randint(0, 2)
+                y = y0 - BLOCK_SIZE // 2 + 5 + ((i // 3) % 3) * 11 + random.randint(0, 2)
+
+                self._world.add_item(physical, x, y)
+            elif drop_category == "block":
+                self._world.add_block(create_block(*drop_types), x, y)
+            else:
+                raise KeyError(f"Unknown drop category {drop_category}")
 
     def get_holding(self):
         active_stack = self._hot_bar.get_selected_value()
@@ -631,6 +736,10 @@ class Ninedraft:
             block = self._world.get_block(x, y)
             if block:
                 self.mine_block(block, x, y)
+            else:
+                target = self._world.get_thing(x, y)
+                if target:
+                    self.attack_mob(target, x, y)
 
     def _trigger_crafting(self, craft_type):
         print(f"Crafting with {craft_type}")
@@ -645,7 +754,7 @@ class Ninedraft:
         # Crafting menu is not currently open
         self._craftingui = CraftingWindow(self._master, "Ninedraft Crafting Menu", self._hot_bar, self._inventory, crafter)
         self._craftingui.bind("e", lambda e: self._craftingui.destroy())
-        self._currently_crafting = True
+        # self._currently_crafting = True
 
     def run_effect(self, effect):
         if len(effect) == 2:
@@ -780,6 +889,11 @@ class Ninedraft:
 # ...
 
 def main():
+    """
+
+    The starting point of the game loop. Creates the tkinter root/master object, instantiates Ninedraft and starts the main loop.
+
+    """
     root = tk.Tk()
     Ninedraft(root)
     root.mainloop()

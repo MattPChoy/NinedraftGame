@@ -244,7 +244,7 @@ class GridCrafterView(tk.Frame):
         """
         # Task 2.2 Crafting: Create widgets here
         # ...
-        print(f"{selected} is selected")
+        # print(f"{selected} is selected")
         for key, stack in key_stack_pairs:
             # print(f"Redrawing {stack} at {key}")
             if key == "output":
